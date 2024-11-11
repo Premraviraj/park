@@ -40,3 +40,15 @@
 .read-the-docs {
   color: #888;
 }
+
+.logo-container {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 100;
+}
+
+.logo {
+  height: 40px;
+  width: auto;
+}

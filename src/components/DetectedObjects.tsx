@@ -3,17 +3,44 @@ import { ResponsivePie } from '@nivo/pie'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect } from 'react'
 
-const data = [
-  { id: 'Car', value: 45, color: '#8884d8' },
-  { id: 'Human', value: 30, color: '#82ca9d' },
-  { id: 'Bike', value: 15, color: '#8dd1e1' },
-  { id: 'Truck', value: 7, color: '#ffc658' },
-  { id: 'Bus', value: 3, color: '#ff8042' }
+// Add prop type
+interface DetectedObjectsProps {
+  isDemoMode: boolean;
+}
+
+// Update the data to be dynamic based on isDemoMode
+const generateData = (isDemoMode: boolean) => [
+  { 
+    id: 'Car', 
+    value: isDemoMode ? 45 : 0, 
+    color: '#8884d8' 
+  },
+  { 
+    id: 'Human', 
+    value: isDemoMode ? 30 : 0, 
+    color: '#82ca9d' 
+  },
+  { 
+    id: 'Bike', 
+    value: isDemoMode ? 15 : 0, 
+    color: '#8dd1e1' 
+  },
+  { 
+    id: 'Truck', 
+    value: isDemoMode ? 7 : 0, 
+    color: '#ffc658' 
+  },
+  { 
+    id: 'Bus', 
+    value: isDemoMode ? 3 : 0, 
+    color: '#ff8042' 
+  }
 ]
 
-const DetectedObjects = () => {
+const DetectedObjects = ({ isDemoMode }: DetectedObjectsProps) => {
   const [selectedItem, setSelectedItem] = useState<string | null>(null)
   const [rotation, setRotation] = useState(-90)
+  const [data, setData] = useState(() => generateData(isDemoMode))
 
   useEffect(() => {
     // Initial load animation
@@ -30,6 +57,11 @@ const DetectedObjects = () => {
       setRotation(prev => prev + 360)
     }
   }, [selectedItem])
+
+  // Update data when isDemoMode changes
+  useEffect(() => {
+    setData(generateData(isDemoMode))
+  }, [isDemoMode])
 
   const getColor = (itemId: string, originalColor: string) => {
     if (!selectedItem) return originalColor

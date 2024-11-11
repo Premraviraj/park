@@ -1,4 +1,4 @@
-import { Box } from '@mui/material'
+import { Box, Select, MenuItem, SelectChangeEvent } from '@mui/material'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -12,7 +12,7 @@ import {
   ChartData,
   ChartOptions
 } from 'chart.js'
-import { Line } from 'react-chartjs-2'
+import { Line, Bar } from 'react-chartjs-2'
 import { useState, useMemo } from 'react'
 
 ChartJS.register(
@@ -52,15 +52,19 @@ const AREA_COLORS = {
 
 type ActivityType = keyof typeof AREA_COLORS
 
-const generateData = () => {
+interface DailyActivityPatternsProps {
+  isDemoMode: boolean;
+}
+
+const generateData = (isDemoMode: boolean) => {
   const data = []
   for (let hour = 0; hour < 24; hour++) {
     data.push({
       time: hour % 4 === 0 ? `${hour.toString().padStart(2, '0')}:00` : '',
       displayTime: `${hour.toString().padStart(2, '0')}:00`,
-      car: Math.floor(Math.sin(hour/24 * Math.PI) * 50 + 60),
-      human: Math.floor(Math.sin((hour+2)/24 * Math.PI) * 30 + 40),
-      bike: Math.floor(Math.sin((hour+4)/24 * Math.PI) * 20 + 25)
+      car: isDemoMode ? Math.floor(Math.sin(hour/24 * Math.PI) * 50 + 60) : 0,
+      human: isDemoMode ? Math.floor(Math.sin((hour+2)/24 * Math.PI) * 30 + 40) : 0,
+      bike: isDemoMode ? Math.floor(Math.sin((hour+4)/24 * Math.PI) * 20 + 25) : 0
     })
   }
   return data
@@ -74,9 +78,16 @@ interface ChartItem {
   bike: number;
 }
 
-const DailyActivityPatterns = () => {
+type ChartType = 'bar' | 'line'
+
+const DailyActivityPatterns = ({ isDemoMode }: DailyActivityPatternsProps) => {
+  const data = useMemo(() => generateData(isDemoMode), [isDemoMode])
+  const [chartType, setChartType] = useState<ChartType>('line')
   const [selectedActivity, setSelectedActivity] = useState<ActivityType | null>(null)
-  const data = useMemo(() => generateData(), [])
+
+  const handleChartTypeChange = (event: SelectChangeEvent<ChartType>) => {
+    setChartType(event.target.value as ChartType)
+  }
 
   const createGradient = (ctx: CanvasRenderingContext2D, color: typeof AREA_COLORS[ActivityType]) => {
     const gradient = ctx.createLinearGradient(0, 0, 0, 400)
@@ -122,7 +133,7 @@ const DailyActivityPatterns = () => {
       x: {
         grid: {
           display: false,
-          borderColor: 'transparent',
+          border: { display: false }
         },
         ticks: {
           color: 'rgba(255, 255, 255, 0.3)',
@@ -136,7 +147,7 @@ const DailyActivityPatterns = () => {
       y: {
         grid: {
           color: 'rgba(255, 255, 255, 0.15)',
-          borderColor: 'transparent',
+          border: { display: false }
         },
         ticks: {
           color: 'rgba(255, 255, 255, 0.3)',
@@ -190,10 +201,95 @@ const DailyActivityPatterns = () => {
       flexDirection: 'column',
     }}>
       <Box sx={{ 
-        height: '180px',
-        mb: '2px'
+        display: 'flex', 
+        justifyContent: 'flex-end',
+        mb: 1
       }}>
-        <Line data={chartData} options={options} />
+        <Select
+          value={chartType}
+          onChange={handleChartTypeChange}
+          size="small"
+          sx={{
+            height: '28px',
+            fontSize: '0.75rem',
+            fontWeight: 600,
+            color: '#ffffff',
+            backgroundColor: '#2A2A2A',
+            '& .MuiSelect-select': {
+              padding: '4px 14px',
+              fontWeight: 600,
+            },
+            '.MuiOutlinedInput-notchedOutline': {
+              borderColor: '#404040',
+              borderWidth: 2,
+            },
+            '&:hover': {
+              backgroundColor: '#333333',
+              '.MuiOutlinedInput-notchedOutline': {
+                borderColor: '#505050',
+                borderWidth: 2,
+              },
+            },
+            '&.Mui-focused': {
+              backgroundColor: '#333333',
+              '.MuiOutlinedInput-notchedOutline': {
+                borderColor: '#606060',
+                borderWidth: 2,
+              },
+            },
+            '.MuiSvgIcon-root': {
+              color: '#ffffff',
+            }
+          }}
+        >
+          <MenuItem 
+            value="bar" 
+            sx={{ 
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              color: '#ffffff',
+              backgroundColor: '#2A2A2A',
+              '&.Mui-selected': {
+                backgroundColor: '#404040',
+              },
+              '&:hover': {
+                backgroundColor: '#333333',
+              }
+            }}
+          >
+            Bar Chart
+          </MenuItem>
+          <MenuItem 
+            value="line" 
+            sx={{ 
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              color: '#ffffff',
+              backgroundColor: '#2A2A2A',
+              '&.Mui-selected': {
+                backgroundColor: '#404040',
+              },
+              '&:hover': {
+                backgroundColor: '#333333',
+              }
+            }}
+          >
+            Line Chart
+          </MenuItem>
+        </Select>
+      </Box>
+
+      <Box sx={{ height: '180px', mb: '2px' }}>
+        {(() => {
+          switch (chartType) {
+            case 'bar':
+              return <Bar data={chartData} options={options} />
+            case 'line':
+              return <Line data={chartData} options={options} />
+            default:
+              return <Line data={chartData} options={options} />
+          }
+        })()}
       </Box>
 
       <Box sx={{ 

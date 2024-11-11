@@ -1,4 +1,4 @@
-import { Box, Grid, ThemeProvider, createTheme, Button } from '@mui/material'
+import { Box, Grid, ThemeProvider, createTheme, Button, useTheme, useMediaQuery, Switch, FormControlLabel } from '@mui/material'
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Login from './pages/auth/Login'
@@ -10,6 +10,8 @@ import DetectedObjectsByCamera from './components/DetectedObjectsByCamera'
 import PopularColors from './components/PopularColors'
 import Calendar from './components/Calendar'
 import { LogOut } from 'lucide-react'
+import SpinnerLoader from './components/SpinnerLoader'
+import { useState, useEffect } from 'react'
 import logo from './assets/logo.webp'
 
 const darkTheme = createTheme({
@@ -69,10 +71,81 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
 const Dashboard = () => {
   const navigate = useNavigate()
+  const [isLoading, setIsLoading] = useState(true)
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
+  const [username, setUsername] = useState<string>('')
+  const [userRole, setUserRole] = useState<string>('')
+  const [isDemoMode, setIsDemoMode] = useState(true)
+
+  useEffect(() => {
+    // Get user info from localStorage
+    const storedUsername = localStorage.getItem('username')
+    const storedRole = localStorage.getItem('userRole')
+    if (storedUsername) {
+      setUsername(storedUsername)
+    }
+    if (storedRole) {
+      setUserRole(storedRole)
+    }
+  }, [])
+
+  useEffect(() => {
+    // Simulate data loading
+    const loadData = async () => {
+      try {
+        // Add your actual data loading logic here
+        await new Promise(resolve => setTimeout(resolve, 2000)) // Simulate 2s loading
+        setIsLoading(false)
+      } catch (error) {
+        console.error('Failed to load dashboard data:', error)
+        setIsLoading(false)
+      }
+    }
+
+    loadData()
+  }, [])
 
   const handleLogout = () => {
     localStorage.removeItem('token')
     navigate('/login')
+  }
+
+  const getWelcomeMessage = () => {
+    const time = new Date().getHours()
+    let greeting = ''
+    
+    if (time < 12) greeting = 'Good morning'
+    else if (time < 17) greeting = 'Good afternoon'
+    else greeting = 'Good evening'
+
+    switch (userRole?.toLowerCase()) {
+      case 'admin':
+        return `${greeting}, Administrator ${username}`
+      case 'security':
+        return `${greeting}, Officer ${username}`
+      case 'manager':
+        return `${greeting}, Manager ${username}`
+      default:
+        return `${greeting}, ${username}`
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <Box
+        sx={{
+          width: '100vw',
+          height: '100vh',
+          bgcolor: 'background.default',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >
+        <SpinnerLoader />
+      </Box>
+    )
   }
 
   return (
@@ -86,77 +159,184 @@ const Dashboard = () => {
         sx={{ 
           bgcolor: 'background.default', 
           minHeight: '100vh',
-          p: 2,
+          p: { xs: 1, sm: 1.5, md: 2 },
           m: 0,
           boxSizing: 'border-box',
           overflowX: 'hidden',
-          borderRight: '24px solid #121212',
+          borderRight: { xs: 'none', md: '24px solid #121212' },
         }}>
         {/* Header */}
         <Box sx={{ 
           display: 'flex', 
           justifyContent: 'space-between',
           alignItems: 'center',
-          mb: 2,
+          mb: { xs: 1, sm: 1.5, md: 2 },
           color: 'rgba(255, 255, 255, 0.7)',
-          fontSize: FONT_SIZES.lg
+          fontSize: { xs: FONT_SIZES.md, sm: FONT_SIZES.lg },
+          flexWrap: 'wrap',
+          gap: 1
         }}>
-          <Box 
-            component="img"
-            src={logo}
-            alt="Logo"
-            sx={{ 
-              height: '60px',
-              width: '60px',
-              objectFit: 'cover',
-              borderRadius: '50%',
-              filter: 'brightness(1)',
-              transition: 'all 0.3s ease',
-              border: '2px solid rgba(255, 255, 255, 0.1)',
-              boxShadow: '0 0 20px rgba(255, 255, 255, 0.1)',
-              '&:hover': {
-                filter: 'brightness(1.2)',
+          {/* Logo and Welcome Message Container */}
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 2 
+          }}>
+            {/* Logo */}
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              style={{ 
                 cursor: 'pointer',
-                transform: 'scale(1.05)',
-                boxShadow: '0 0 30px rgba(255, 255, 255, 0.2)',
-                border: '2px solid rgba(255, 255, 255, 0.3)'
+                background: 'rgba(255, 255, 255, 0.05)',
+                borderRadius: '50%',
+                padding: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <img 
+                src={logo} 
+                alt="Logo" 
+                style={{
+                  height: isMobile ? '40px' : '50px',
+                  width: isMobile ? '40px' : '50px',
+                  objectFit: 'cover',
+                  borderRadius: '50%'
+                }}
+              />
+            </motion.div>
+
+            {/* Updated Welcome Message */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              <Box sx={{ 
+                display: { xs: 'none', sm: 'block' },
+                color: 'rgba(255, 255, 255, 0.9)'
+              }}>
+                <Box sx={{ 
+                  fontSize: FONT_SIZES.sm,
+                  color: 'rgba(255, 255, 255, 0.6)'
+                }}>
+                  {userRole && (
+                    <Box component="span" sx={{ 
+                      display: 'inline-block',
+                      bgcolor: 'rgba(255, 255, 255, 0.1)',
+                      px: 1,
+                      py: 0.5,
+                      borderRadius: 1,
+                      fontSize: FONT_SIZES.xs,
+                      mr: 1
+                    }}>
+                      {userRole.toUpperCase()}
+                    </Box>
+                  )}
+                  {new Date().toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </Box>
+                <Box sx={{ 
+                  fontSize: FONT_SIZES.lg,
+                  fontWeight: 500,
+                  mt: 0.5
+                }}>
+                  {getWelcomeMessage()}
+                </Box>
+              </Box>
+            </motion.div>
+          </Box>
+
+          {/* Right section with Demo Mode toggle and Logout */}
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 2 
+          }}>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={isDemoMode}
+                  onChange={(e) => setIsDemoMode(e.target.checked)}
+                  sx={{
+                    '& .MuiSwitch-switchBase.Mui-checked': {
+                      color: '#82ca9d',
+                      '&:hover': {
+                        backgroundColor: 'rgba(130, 202, 157, 0.08)',
+                      },
+                    },
+                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                      backgroundColor: '#82ca9d',
+                    },
+                    '& .MuiSwitch-track': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                    },
+                    '& .MuiSwitch-thumb': {
+                      backgroundColor: isDemoMode ? '#82ca9d' : '#fff',
+                    }
+                  }}
+                />
               }
-            }}
-          />
-          <Button
-            onClick={handleLogout}
-            startIcon={<LogOut size={18} />}
-            sx={{
-              color: 'rgba(255, 255, 255, 0.7)',
-              textTransform: 'none',
-              fontSize: FONT_SIZES.lg,
-              '&:hover': {
-                bgcolor: 'rgba(255, 255, 255, 0.1)',
-                color: 'rgba(255, 255, 255, 0.9)',
+              label={
+                <Box sx={{ 
+                  fontSize: FONT_SIZES.sm,
+                  color: isDemoMode ? '#82ca9d' : 'rgba(255, 255, 255, 0.7)',
+                  fontWeight: isDemoMode ? 600 : 400,
+                  transition: 'color 0.3s ease'
+                }}>
+                  Demo Mode
+                </Box>
               }
-            }}
-          >
-            Logout
-          </Button>
+              sx={{
+                marginRight: 0,
+                '& .MuiFormControlLabel-label': {
+                  marginLeft: 1
+                }
+              }}
+            />
+
+            <Button
+              onClick={handleLogout}
+              startIcon={<LogOut size={isMobile ? 16 : 18} />}
+              sx={{
+                color: 'rgba(255, 255, 255, 0.7)',
+                textTransform: 'none',
+                fontSize: { xs: FONT_SIZES.sm, sm: FONT_SIZES.md, md: FONT_SIZES.lg },
+                '&:hover': {
+                  bgcolor: 'rgba(255, 255, 255, 0.1)',
+                  color: 'rgba(255, 255, 255, 0.9)',
+                }
+              }}
+            >
+              Logout
+            </Button>
+          </Box>
         </Box>
 
         {/* Stats Cards */}
         <motion.div variants={itemVariants}>
           <Grid 
             container 
-            spacing={3}
+            spacing={{ xs: 1, sm: 2, md: 3 }}
             sx={{ 
-              mb: 3,
+              mb: { xs: 1.5, sm: 2, md: 3 },
               m: 0,
               width: 'auto'
             }}
           >
-            <Grid item xs={2}>
+            {/* Scene analysis cameras */}
+            <Grid item xs={6} sm={4} md={2}>
               <Box sx={{ 
                 bgcolor: 'background.paper',
-                p: 2.5,
+                p: { xs: 1.5, sm: 2, md: 2.5 },
                 borderRadius: 2,
-                height: '100px',
+                height: { xs: '80px', sm: '90px', md: '100px' },
                 transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
                 '&:hover': {
                   transform: 'translateY(-2px)',
@@ -165,120 +345,178 @@ const Dashboard = () => {
               }}>
                 <Box sx={{ 
                   color: 'rgba(255, 255, 255, 0.7)', 
-                  mb: 1.5,
-                  fontSize: FONT_SIZES.md
+                  mb: 1,
+                  fontSize: { xs: FONT_SIZES.xs, sm: FONT_SIZES.sm, md: FONT_SIZES.md }
                 }}>
                   Scene analysis cameras
                 </Box>
-                <Box sx={{ fontSize: FONT_SIZES['3xl'], color: '#fff' }}>2</Box>
+                <Box sx={{ 
+                  fontSize: { xs: FONT_SIZES.xl, sm: FONT_SIZES['2xl'], md: FONT_SIZES['3xl'] }, 
+                  color: '#fff' 
+                }}>
+                  {isDemoMode ? '2' : '0'}
+                </Box>
               </Box>
             </Grid>
-            <Grid item xs={2}>
+
+            {/* Total count */}
+            <Grid item xs={6} sm={4} md={2}>
               <Box sx={{ 
                 bgcolor: 'background.paper',
-                p: 2.5,
+                p: { xs: 1.5, sm: 2, md: 2.5 },
                 borderRadius: 2,
-                height: '100px',
+                height: { xs: '80px', sm: '90px', md: '100px' },
                 transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
                 '&:hover': {
                   transform: 'translateY(-2px)',
                   boxShadow: '0 4px 20px rgba(0,0,0,0.4)'
                 }
               }}>
-                <Box sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1.5, fontSize: FONT_SIZES.md }}>
+                <Box sx={{ 
+                  color: 'rgba(255, 255, 255, 0.7)', 
+                  mb: 1,
+                  fontSize: { xs: FONT_SIZES.xs, sm: FONT_SIZES.sm, md: FONT_SIZES.md }
+                }}>
                   Total count
                 </Box>
-                <Box sx={{ fontSize: '1.75rem', color: '#fff' }}>4.9k</Box>
+                <Box sx={{ 
+                  fontSize: { xs: FONT_SIZES.xl, sm: FONT_SIZES['2xl'], md: FONT_SIZES['3xl'] }, 
+                  color: '#fff' 
+                }}>
+                  {isDemoMode ? '4.9k' : '0'}
+                </Box>
               </Box>
             </Grid>
-            <Grid item xs={2}>
+
+            {/* People count (last 5 minutes) */}
+            <Grid item xs={6} sm={4} md={2}>
               <Box sx={{ 
                 bgcolor: 'background.paper',
-                p: 2.5,
+                p: { xs: 1.5, sm: 2, md: 2.5 },
                 borderRadius: 2,
-                height: '100px',
+                height: { xs: '80px', sm: '90px', md: '100px' },
                 transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
                 '&:hover': {
                   transform: 'translateY(-2px)',
                   boxShadow: '0 4px 20px rgba(0,0,0,0.4)'
                 }
               }}>
-                <Box sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1.5, fontSize: FONT_SIZES.md }}>
+                <Box sx={{ 
+                  color: 'rgba(255, 255, 255, 0.7)', 
+                  mb: 1,
+                  fontSize: { xs: FONT_SIZES.xs, sm: FONT_SIZES.sm, md: FONT_SIZES.md }
+                }}>
                   People count (last 5 minutes)
                 </Box>
                 <Box sx={{ 
-                  fontSize: '1.75rem',
+                  fontSize: { xs: FONT_SIZES.xl, sm: FONT_SIZES['2xl'], md: FONT_SIZES['3xl'] }, 
+                  color: '#fff',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 1,
-                  color: '#fff'
+                  gap: 1
                 }}>
-                  2
-                  <Box component="span" sx={{ color: '#f44336', fontSize: '1rem', ml: 1 }}>↓</Box>
+                  {isDemoMode ? (
+                    <>
+                      2
+                      <Box component="span" sx={{ color: '#f44336', fontSize: '1rem', ml: 1 }}>↓</Box>
+                    </>
+                  ) : '0'}
                 </Box>
               </Box>
             </Grid>
-            <Grid item xs={2}>
+
+            {/* Vehicle count (last 5 minutes) */}
+            <Grid item xs={6} sm={4} md={2}>
               <Box sx={{ 
                 bgcolor: 'background.paper',
-                p: 2.5,
+                p: { xs: 1.5, sm: 2, md: 2.5 },
                 borderRadius: 2,
-                height: '100px',
+                height: { xs: '80px', sm: '90px', md: '100px' },
                 transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
                 '&:hover': {
                   transform: 'translateY(-2px)',
                   boxShadow: '0 4px 20px rgba(0,0,0,0.4)'
                 }
               }}>
-                <Box sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1.5, fontSize: FONT_SIZES.md }}>
+                <Box sx={{ 
+                  color: 'rgba(255, 255, 255, 0.7)', 
+                  mb: 1,
+                  fontSize: { xs: FONT_SIZES.xs, sm: FONT_SIZES.sm, md: FONT_SIZES.md }
+                }}>
                   Vehicle count (last 5 minutes)
                 </Box>
                 <Box sx={{ 
-                  fontSize: '1.75rem',
+                  fontSize: { xs: FONT_SIZES.xl, sm: FONT_SIZES['2xl'], md: FONT_SIZES['3xl'] }, 
+                  color: '#fff',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 1,
-                  color: '#fff'
+                  gap: 1
                 }}>
-                  0
-                  <Box component="span" sx={{ color: '#f44336', fontSize: '1rem', ml: 1 }}>↓</Box>
+                  {isDemoMode ? (
+                    <>
+                      0
+                      <Box component="span" sx={{ color: '#f44336', fontSize: '1rem', ml: 1 }}>↓</Box>
+                    </>
+                  ) : '0'}
                 </Box>
               </Box>
             </Grid>
-            <Grid item xs={2}>
+
+            {/* People count (peak hour) */}
+            <Grid item xs={6} sm={4} md={2}>
               <Box sx={{ 
                 bgcolor: 'background.paper',
-                p: 2.5,
+                p: { xs: 1.5, sm: 2, md: 2.5 },
                 borderRadius: 2,
-                height: '100px',
+                height: { xs: '80px', sm: '90px', md: '100px' },
                 transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
                 '&:hover': {
                   transform: 'translateY(-2px)',
                   boxShadow: '0 4px 20px rgba(0,0,0,0.4)'
                 }
               }}>
-                <Box sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1.5, fontSize: FONT_SIZES.md }}>
+                <Box sx={{ 
+                  color: 'rgba(255, 255, 255, 0.7)', 
+                  mb: 1,
+                  fontSize: { xs: FONT_SIZES.xs, sm: FONT_SIZES.sm, md: FONT_SIZES.md }
+                }}>
                   People count (peak hour)
                 </Box>
-                <Box sx={{ fontSize: '1.75rem', color: '#fff' }}>259</Box>
+                <Box sx={{ 
+                  fontSize: { xs: FONT_SIZES.xl, sm: FONT_SIZES['2xl'], md: FONT_SIZES['3xl'] }, 
+                  color: '#fff' 
+                }}>
+                  {isDemoMode ? '259' : '0'}
+                </Box>
               </Box>
             </Grid>
-            <Grid item xs={2}>
+
+            {/* Vehicle count (peak hour) */}
+            <Grid item xs={6} sm={4} md={2}>
               <Box sx={{ 
                 bgcolor: 'background.paper',
-                p: 2.5,
+                p: { xs: 1.5, sm: 2, md: 2.5 },
                 borderRadius: 2,
-                height: '100px',
+                height: { xs: '80px', sm: '90px', md: '100px' },
                 transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
                 '&:hover': {
                   transform: 'translateY(-2px)',
                   boxShadow: '0 4px 20px rgba(0,0,0,0.4)'
                 }
               }}>
-                <Box sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 1.5, fontSize: FONT_SIZES.md }}>
+                <Box sx={{ 
+                  color: 'rgba(255, 255, 255, 0.7)', 
+                  mb: 1,
+                  fontSize: { xs: FONT_SIZES.xs, sm: FONT_SIZES.sm, md: FONT_SIZES.md }
+                }}>
                   Vehicle count (peak hour)
                 </Box>
-                <Box sx={{ fontSize: '1.75rem', color: '#fff' }}>473</Box>
+                <Box sx={{ 
+                  fontSize: { xs: FONT_SIZES.xl, sm: FONT_SIZES['2xl'], md: FONT_SIZES['3xl'] }, 
+                  color: '#fff' 
+                }}>
+                  {isDemoMode ? '473' : '0'}
+                </Box>
               </Box>
             </Grid>
           </Grid>
@@ -288,17 +526,17 @@ const Dashboard = () => {
         <motion.div variants={itemVariants}>
           <Grid 
             container 
-            spacing={1.5}
+            spacing={{ xs: 1, sm: 1.5, md: 2 }}
             sx={{ 
               m: 0,
               width: 'auto'
             }}
           >
             {/* Left Column */}
-            <Grid item xs={8}>
+            <Grid item xs={12} md={8}>
               <Grid 
                 container 
-                spacing={1.5}
+                spacing={{ xs: 1, sm: 1.5, md: 2 }}
                 direction="column"
                 sx={{
                   m: 0,
@@ -306,38 +544,26 @@ const Dashboard = () => {
                 }}
               >
                 {/* Activity History */}
-                <motion.div variants={itemVariants}>
-                  <Grid item xs={12}>
+                <Grid item xs={12} md={5}>
+                  <Box sx={{ 
+                    bgcolor: 'background.paper',
+                    p: { xs: 1, sm: 1.5, md: 2 },
+                    borderRadius: 2,
+                    height: { xs: '250px', sm: '300px', md: '350px' },
+                  }}>
                     <Box sx={{ 
-                      bgcolor: 'background.paper',
-                      p: 1.5,
-                      borderRadius: 2,
-                      height: '350px',
+                      color: 'rgba(255, 255, 255, 0.7)', 
+                      mb: 0.5, 
+                      fontSize: { xs: '0.8rem', sm: '0.85rem', md: '0.9rem' },
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
                     }}>
-                      <Box sx={{ 
-                        color: 'rgba(255, 255, 255, 0.7)', 
-                        mb: 0.5, 
-                        fontSize: '0.9rem',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
-                      }}>
-                        Activity history
-                      </Box>
-                      <Box sx={{ 
-                        color: 'rgba(255, 255, 255, 0.5)', 
-                        fontSize: '0.8rem',
-                        mb: 0.5,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
-                      }}>
-                        Object detections per 5 minutes
-                      </Box>
-                      <ActivityHistory />
+                      Activity history
                     </Box>
-                  </Grid>
-                </motion.div>
+                    <ActivityHistory isDemoMode={isDemoMode} />
+                  </Box>
+                </Grid>
 
                 {/* Identified Vehicles */}
                 <Grid item>
@@ -368,7 +594,7 @@ const Dashboard = () => {
                     }}>
                       License plates detected by camera
                     </Box>
-                    <IdentifiedVehicles />
+                    <IdentifiedVehicles isDemoMode={isDemoMode} />
                   </Box>
                 </Grid>
 
@@ -403,7 +629,7 @@ const Dashboard = () => {
                         }}>
                           by type
                         </Box>
-                        <DetectedObjects />
+                        <DetectedObjects isDemoMode={isDemoMode} />
                       </Box>
                     </Grid>
                     <Grid item xs={6}>
@@ -434,7 +660,7 @@ const Dashboard = () => {
                         }}>
                           by camera
                         </Box>
-                        <DetectedObjectsByCamera />
+                        <DetectedObjectsByCamera isDemoMode={isDemoMode} />
                       </Box>
                     </Grid>
                   </Grid>
@@ -443,10 +669,10 @@ const Dashboard = () => {
             </Grid>
 
             {/* Right Column */}
-            <Grid item xs={4}>
+            <Grid item xs={12} md={4}>
               <Grid 
                 container 
-                spacing={1.5}
+                spacing={{ xs: 1, sm: 1.5, md: 2 }}
                 direction="column"
                 sx={{
                   m: 0,
@@ -481,7 +707,7 @@ const Dashboard = () => {
                     }}>
                       Average object detections during the hours of a day
                     </Box>
-                    <DailyActivityPatterns />
+                    <DailyActivityPatterns isDemoMode={isDemoMode} />
                   </Box>
                 </Grid>
 
@@ -516,7 +742,7 @@ const Dashboard = () => {
                     }}>
                       Popular T-shirt colors
                     </Box>
-                    <PopularColors />
+                    <PopularColors isDemoMode={isDemoMode} />
                   </Box>
                 </Grid>
               </Grid>
@@ -542,18 +768,20 @@ function App() {
             margin: 0
           }
         }}>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route 
-              path="/dashboard" 
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              } 
-            />
-            <Route path="/" element={<Navigate to="/login" replace />} />
-          </Routes>
+          <div className="app-container">
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route 
+                path="/dashboard" 
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route path="/" element={<Navigate to="/login" replace />} />
+            </Routes>
+          </div>
         </Box>
       </ThemeProvider>
     </Router>

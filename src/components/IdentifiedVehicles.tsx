@@ -1,4 +1,4 @@
-import { Box } from '@mui/material'
+import { Box, Select, MenuItem, SelectChangeEvent } from '@mui/material'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -12,8 +12,8 @@ import {
   ChartData,
   ChartOptions
 } from 'chart.js'
-import { Line } from 'react-chartjs-2'
-import { useState, useMemo } from 'react'
+import { Line, Bar } from 'react-chartjs-2'
+import { useState, useEffect } from 'react'
 
 ChartJS.register(
   CategoryScale,
@@ -52,22 +52,24 @@ const AREA_COLORS = {
 
 type VehicleType = keyof typeof AREA_COLORS
 
-const generateData = () => {
+interface IdentifiedVehiclesProps {
+  isDemoMode: boolean;
+}
+
+const generateData = (currentTime: Date, minutes: number = 10, isDemoMode: boolean) => {
   const data = []
-  const now = new Date()
-  now.setHours(0, 0, 0, 0)
   
-  for (let i = 0; i < 24; i++) {
-    const time = new Date(now.getTime() + i * 60 * 60000)
+  for (let i = 0; i < minutes; i++) {
+    const time = new Date(currentTime.getTime() - (minutes - 1 - i) * 60000)
     
     data.push({
-      time: i % 4 === 0 ?
+      time: i % 2 === 0 ?
         time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) 
         : '',
       displayTime: time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-      in: Math.floor(Math.random() * 50) + 20,
-      out: Math.floor(Math.random() * 50) + 20,
-      unknown: Math.floor(Math.random() * 10)
+      in: isDemoMode ? Math.floor(Math.random() * 10) + 5 : 0,
+      out: isDemoMode ? Math.floor(Math.random() * 10) + 5 : 0,
+      unknown: isDemoMode ? Math.floor(Math.random() * 5) + 1 : 0
     })
   }
   return data
@@ -81,9 +83,40 @@ interface ChartItem {
   unknown: number;
 }
 
-const IdentifiedVehicles = () => {
+const IdentifiedVehicles = ({ isDemoMode }: IdentifiedVehiclesProps) => {
   const [selectedType, setSelectedType] = useState<VehicleType | null>(null)
-  const data = useMemo(() => generateData(), [])
+  const [currentTime, setCurrentTime] = useState(new Date())
+  const [data, setData] = useState(() => generateData(new Date(), 10, isDemoMode))
+  const [isUpdating, setIsUpdating] = useState(false)
+  const [timeRange, setTimeRange] = useState('10')
+  const [chartType, setChartType] = useState<ChartType>('line')
+
+  // Update data every minute
+  useEffect(() => {
+    const updateData = async () => {
+      setIsUpdating(true)
+      await new Promise(resolve => setTimeout(resolve, 200))
+      setCurrentTime(new Date())
+      setData(generateData(new Date(), parseInt(timeRange), isDemoMode))
+      setIsUpdating(false)
+    }
+
+    const intervalId = setInterval(updateData, 60000)
+    return () => clearInterval(intervalId)
+  }, [timeRange, isDemoMode])
+
+  // Update data immediately when selected type or timeRange changes
+  useEffect(() => {
+    setData(generateData(currentTime, parseInt(timeRange), isDemoMode))
+  }, [selectedType, currentTime, timeRange, isDemoMode])
+
+  const handleTimeRangeChange = (event: SelectChangeEvent<string>) => {
+    setTimeRange(event.target.value)
+  }
+
+  const handleChartTypeChange = (event: SelectChangeEvent<ChartType>) => {
+    setChartType(event.target.value as ChartType)
+  }
 
   const createGradient = (ctx: CanvasRenderingContext2D, color: typeof AREA_COLORS[VehicleType]) => {
     const gradient = ctx.createLinearGradient(0, 0, 0, 400)
@@ -129,7 +162,7 @@ const IdentifiedVehicles = () => {
       x: {
         grid: {
           display: false,
-          drawBorder: false,
+          border: { display: false }
         },
         ticks: {
           color: 'rgba(255, 255, 255, 0.3)',
@@ -143,13 +176,16 @@ const IdentifiedVehicles = () => {
       y: {
         grid: {
           color: 'rgba(255, 255, 255, 0.15)',
-          drawBorder: false,
+          border: { display: false }
         },
+        min: 0,
+        max: 30,
         ticks: {
           color: 'rgba(255, 255, 255, 0.3)',
           font: {
             size: 9
-          }
+          },
+          stepSize: 5
         }
       }
     },
@@ -190,9 +226,241 @@ const IdentifiedVehicles = () => {
   }
 
   return (
-    <Box sx={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ height: '150px', mb: 1 }}>
-        <Line data={chartData} options={options} />
+    <Box sx={{ 
+      width: '100%', 
+      height: '100%', 
+      display: 'flex', 
+      flexDirection: 'column',
+      position: 'relative'
+    }}>
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'flex-end',
+        gap: 1,
+        mb: 1
+      }}>
+        <Select
+          value={chartType}
+          onChange={handleChartTypeChange}
+          size="small"
+          sx={{
+            height: '28px',
+            fontSize: '0.75rem',
+            fontWeight: 600,
+            color: '#ffffff',
+            backgroundColor: '#2A2A2A',
+            '& .MuiSelect-select': {
+              padding: '4px 14px',
+              fontWeight: 600,
+            },
+            '.MuiOutlinedInput-notchedOutline': {
+              borderColor: '#404040',
+              borderWidth: 2,
+            },
+            '&:hover': {
+              backgroundColor: '#333333',
+              '.MuiOutlinedInput-notchedOutline': {
+                borderColor: '#505050',
+                borderWidth: 2,
+              },
+            },
+            '&.Mui-focused': {
+              backgroundColor: '#333333',
+              '.MuiOutlinedInput-notchedOutline': {
+                borderColor: '#606060',
+                borderWidth: 2,
+              },
+            },
+            '.MuiSvgIcon-root': {
+              color: '#ffffff',
+            }
+          }}
+        >
+          <MenuItem 
+            value="bar" 
+            sx={{ 
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              color: '#ffffff',
+              backgroundColor: '#2A2A2A',
+              '&.Mui-selected': {
+                backgroundColor: '#404040',
+              },
+              '&:hover': {
+                backgroundColor: '#333333',
+              }
+            }}
+          >
+            Bar Chart
+          </MenuItem>
+          <MenuItem 
+            value="line" 
+            sx={{ 
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              color: '#ffffff',
+              backgroundColor: '#2A2A2A',
+              '&.Mui-selected': {
+                backgroundColor: '#404040',
+              },
+              '&:hover': {
+                backgroundColor: '#333333',
+              }
+            }}
+          >
+            Line Chart
+          </MenuItem>
+        </Select>
+
+        <Select
+          value={timeRange}
+          onChange={handleTimeRangeChange}
+          size="small"
+          sx={{
+            height: '28px',
+            fontSize: '0.75rem',
+            fontWeight: 600,
+            color: '#ffffff',
+            backgroundColor: '#2A2A2A',
+            '& .MuiSelect-select': {
+              padding: '4px 14px',
+              fontWeight: 600,
+            },
+            '.MuiOutlinedInput-notchedOutline': {
+              borderColor: '#404040',
+              borderWidth: 2,
+            },
+            '&:hover': {
+              backgroundColor: '#333333',
+              '.MuiOutlinedInput-notchedOutline': {
+                borderColor: '#505050',
+                borderWidth: 2,
+              },
+            },
+            '&.Mui-focused': {
+              backgroundColor: '#333333',
+              '.MuiOutlinedInput-notchedOutline': {
+                borderColor: '#606060',
+                borderWidth: 2,
+              },
+            },
+            '.MuiSvgIcon-root': {
+              color: '#ffffff',
+            }
+          }}
+        >
+          <MenuItem 
+            value="5" 
+            sx={{ 
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              color: '#ffffff',
+              backgroundColor: '#2A2A2A',
+              '&.Mui-selected': {
+                backgroundColor: '#404040',
+              },
+              '&:hover': {
+                backgroundColor: '#333333',
+              }
+            }}
+          >
+            Last 5 minutes
+          </MenuItem>
+          <MenuItem 
+            value="10" 
+            sx={{ 
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              color: '#ffffff',
+              backgroundColor: '#2A2A2A',
+              '&.Mui-selected': {
+                backgroundColor: '#404040',
+              },
+              '&:hover': {
+                backgroundColor: '#333333',
+              }
+            }}
+          >
+            Last 10 minutes
+          </MenuItem>
+          <MenuItem 
+            value="15" 
+            sx={{ 
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              color: '#ffffff',
+              backgroundColor: '#2A2A2A',
+              '&.Mui-selected': {
+                backgroundColor: '#404040',
+              },
+              '&:hover': {
+                backgroundColor: '#333333',
+              }
+            }}
+          >
+            Last 15 minutes
+          </MenuItem>
+          <MenuItem 
+            value="30" 
+            sx={{ 
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              color: '#ffffff',
+              backgroundColor: '#2A2A2A',
+              '&.Mui-selected': {
+                backgroundColor: '#404040',
+              },
+              '&:hover': {
+                backgroundColor: '#333333',
+              }
+            }}
+          >
+            Last 30 minutes
+          </MenuItem>
+        </Select>
+      </Box>
+
+      {isUpdating && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 28,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            bgcolor: 'rgba(0, 0, 0, 0.1)',
+            zIndex: 1,
+            borderRadius: 1
+          }}
+        >
+          <Box
+            sx={{
+              width: 6,
+              height: 6,
+              bgcolor: 'primary.main',
+              borderRadius: '50%',
+              animation: 'pulse 1s infinite'
+            }}
+          />
+        </Box>
+      )}
+      <Box sx={{ 
+        height: 'calc(150px - 36px)',
+        mb: 1 
+      }}>
+        {(() => {
+          switch (chartType) {
+            case 'bar':
+              return <Bar data={chartData} options={options} />
+            case 'line':
+              return <Line data={chartData} options={options} />
+            default:
+              return <Line data={chartData} options={options} />
+          }
+        })()}
       </Box>
 
       <Box 
@@ -201,7 +469,8 @@ const IdentifiedVehicles = () => {
           gap: 1.5,
           justifyContent: 'flex-start',
           ml: 2,
-          pb: 1
+          pb: 1,
+          flexShrink: 0
         }}
       >
         {Object.entries(AREA_COLORS).map(([key, value]) => (

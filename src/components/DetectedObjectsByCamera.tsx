@@ -3,14 +3,27 @@ import { ResponsivePie } from '@nivo/pie'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect } from 'react'
 
-const data = [
-  { id: 'South Parking (Q1656-LE)', value: 60, color: '#4169E1' },
-  { id: 'Parking exit (Q1656)', value: 40, color: '#40E0D0' }
+interface DetectedObjectsByCameraProps {
+  isDemoMode: boolean;
+}
+
+const generateData = (isDemoMode: boolean) => [
+  { 
+    id: 'South Parking (Q1656-LE)', 
+    value: isDemoMode ? 60 : 0, 
+    color: '#4169E1' 
+  },
+  { 
+    id: 'Parking exit (Q1656)', 
+    value: isDemoMode ? 40 : 0, 
+    color: '#40E0D0' 
+  }
 ]
 
-const DetectedObjectsByCamera = () => {
+const DetectedObjectsByCamera = ({ isDemoMode }: DetectedObjectsByCameraProps) => {
   const [selectedItem, setSelectedItem] = useState<string | null>(null)
   const [rotation, setRotation] = useState(-90)
+  const [data, setData] = useState(() => generateData(isDemoMode))
 
   useEffect(() => {
     // Initial load animation
@@ -27,6 +40,11 @@ const DetectedObjectsByCamera = () => {
       setRotation(prev => prev + 360)
     }
   }, [selectedItem])
+
+  // Update data when isDemoMode changes
+  useEffect(() => {
+    setData(generateData(isDemoMode))
+  }, [isDemoMode])
 
   const getColor = (itemId: string, originalColor: string) => {
     if (!selectedItem) return originalColor

@@ -3,20 +3,57 @@ import { ResponsivePie } from '@nivo/pie'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect } from 'react'
 
-const data = [
-  { id: 'Black', value: 35, color: '#000000' },
-  { id: 'White', value: 25, color: '#FFFFFF' },
-  { id: 'Blue', value: 15, color: '#4169E1' },
-  { id: 'Red', value: 10, color: '#FF4444' },
-  { id: 'Gray', value: 8, color: '#808080' },
-  { id: 'Beige', value: 4, color: '#F5F5DC' },
-  { id: 'Green', value: 2, color: '#4CAF50' },
-  { id: 'Yellow', value: 1, color: '#FFEB3B' }
+interface PopularColorsProps {
+  isDemoMode: boolean;
+}
+
+const generateData = (isDemoMode: boolean) => [
+  { 
+    id: 'Black', 
+    value: isDemoMode ? 35 : 0, 
+    color: '#000000' 
+  },
+  { 
+    id: 'White', 
+    value: isDemoMode ? 25 : 0, 
+    color: '#FFFFFF' 
+  },
+  { 
+    id: 'Blue', 
+    value: isDemoMode ? 15 : 0, 
+    color: '#4169E1' 
+  },
+  { 
+    id: 'Red', 
+    value: isDemoMode ? 10 : 0, 
+    color: '#FF4444' 
+  },
+  { 
+    id: 'Gray', 
+    value: isDemoMode ? 8 : 0, 
+    color: '#808080' 
+  },
+  { 
+    id: 'Beige', 
+    value: isDemoMode ? 4 : 0, 
+    color: '#F5F5DC' 
+  },
+  { 
+    id: 'Green', 
+    value: isDemoMode ? 2 : 0, 
+    color: '#4CAF50' 
+  },
+  { 
+    id: 'Yellow', 
+    value: isDemoMode ? 1 : 0, 
+    color: '#FFEB3B' 
+  }
 ]
 
-const PopularColors = () => {
+const PopularColors = ({ isDemoMode }: PopularColorsProps) => {
   const [selectedItem, setSelectedItem] = useState<string | null>(null)
   const [rotation, setRotation] = useState(-90)
+  const [data, setData] = useState(() => generateData(isDemoMode))
 
   useEffect(() => {
     // Initial load animation
@@ -33,6 +70,11 @@ const PopularColors = () => {
       setRotation(prev => prev + 360)
     }
   }, [selectedItem])
+
+  // Update data when isDemoMode changes
+  useEffect(() => {
+    setData(generateData(isDemoMode))
+  }, [isDemoMode])
 
   const getColor = (itemId: string, originalColor: string) => {
     if (!selectedItem) return originalColor

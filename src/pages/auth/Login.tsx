@@ -23,16 +23,22 @@ const Login = () => {
     setError('')
 
     try {
-      // For demo purposes, accept any non-empty username/password
-      if (credentials.username && credentials.password) {
-        localStorage.setItem('token', 'demo-token')
-        navigate('/dashboard')
-      } else {
+      // Basic validation
+      if (!credentials.username || !credentials.password) {
         throw new Error('Please enter both username and password')
       }
+
+      // Simulate login delay
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      localStorage.setItem('token', 'demo-token')
+      navigate('/dashboard')
     } catch (err) {
-      setError('Invalid username or password')
-    } finally {
+      if (err instanceof Error) {
+        setError(err.message)
+      } else {
+        setError('An unexpected error occurred')
+      }
       setIsLoading(false)
     }
   }
@@ -140,7 +146,11 @@ const Login = () => {
           />
 
           {error && (
-            <Typography color="error" textAlign="center">
+            <Typography 
+              color="error" 
+              textAlign="center"
+              sx={{ mt: -1 }}
+            >
               {error}
             </Typography>
           )}
@@ -166,4 +176,4 @@ const Login = () => {
   )
 }
 
-export default Login 
+export default Login
