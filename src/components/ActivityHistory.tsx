@@ -61,6 +61,7 @@ const generateData = (currentTime: Date, minutes: number = 10, isDemoMode: boole
       bus: isDemoMode ? Math.floor(Math.random() * 3) + 1 : 0
     })
   }
+  console.log("generate a data",data);
   return data
 }
 

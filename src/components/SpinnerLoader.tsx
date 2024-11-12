@@ -128,7 +128,8 @@ const SpinnerLoader = () => {
         padding: { xs: 1, sm: 1.5, md: 2 },
         width: '100%',
         maxWidth: '100vw',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        backgroundColor: '#000000'
       }}
     >
       <Box
