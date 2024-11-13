@@ -1,4 +1,4 @@
-import { Box, Select, MenuItem, SelectChangeEvent } from '@mui/material'
+import { Box, Popover, IconButton, SelectChangeEvent } from '@mui/material'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -14,6 +14,7 @@ import {
 } from 'chart.js'
 import { Line, Bar } from 'react-chartjs-2'
 import { useState, useMemo } from 'react'
+import { Settings } from 'lucide-react'
 
 ChartJS.register(
   CategoryScale,
@@ -26,34 +27,32 @@ ChartJS.register(
   Filler
 )
 
-const AREA_COLORS = {
+const GRADIENT_COLORS = {
   car: {
-    color: 'rgba(136, 132, 216, 1)',
-    gradient: {
-      light: 'rgba(136, 132, 216, 0.3)',
-      dark: 'rgba(136, 132, 216, 0.1)'
-    }
+    name: 'Ocean Flow',
+    gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+    color: '#4facfe'
   },
   human: {
-    color: 'rgba(130, 202, 157, 1)',
-    gradient: {
-      light: 'rgba(130, 202, 157, 0.3)',
-      dark: 'rgba(130, 202, 157, 0.1)'
-    }
+    name: 'Spring Warmth',
+    gradient: 'linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)',
+    color: '#84fab0'
   },
   bike: {
-    color: 'rgba(141, 209, 225, 1)',
-    gradient: {
-      light: 'rgba(141, 209, 225, 0.3)',
-      dark: 'rgba(141, 209, 225, 0.1)'
-    }
+    name: 'Purple Dusk',
+    gradient: 'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)',
+    color: '#a18cd1'
   }
 } as const
 
-type ActivityType = keyof typeof AREA_COLORS
+type ActivityType = keyof typeof GRADIENT_COLORS
 
 interface DailyActivityPatternsProps {
   isDemoMode: boolean;
+  textColor: string;
+  setDailyPatternsSettingsOpen?: (open: boolean) => void;
+  chartType: ChartType;
+  onChartTypeChange?: (type: ChartType) => void;
 }
 
 const generateData = (isDemoMode: boolean) => {
@@ -78,48 +77,48 @@ interface ChartItem {
   bike: number;
 }
 
-type ChartType = 'bar' | 'line'
+type ChartType = 'bar' | 'line' | 'scatter' | 'bubble';
 
-const DailyActivityPatterns = ({ isDemoMode }: DailyActivityPatternsProps) => {
+const DailyActivityPatterns = ({ 
+  isDemoMode, 
+  textColor,
+  setDailyPatternsSettingsOpen,
+  chartType,
+  onChartTypeChange
+}: DailyActivityPatternsProps) => {
   const data = useMemo(() => generateData(isDemoMode), [isDemoMode])
-  const [chartType, setChartType] = useState<ChartType>('line')
   const [selectedActivity, setSelectedActivity] = useState<ActivityType | null>(null)
-
-  const handleChartTypeChange = (event: SelectChangeEvent<ChartType>) => {
-    setChartType(event.target.value as ChartType)
-  }
-
-  const createGradient = (ctx: CanvasRenderingContext2D, color: typeof AREA_COLORS[ActivityType]) => {
-    const gradient = ctx.createLinearGradient(0, 0, 0, 400)
-    gradient.addColorStop(0, color.gradient.light)
-    gradient.addColorStop(1, color.gradient.dark)
-    return gradient
-  }
 
   const chartData: ChartData<'line'> = {
     labels: data.map((d: ChartItem) => d.time),
-    datasets: Object.entries(AREA_COLORS).map(([key, color]) => ({
+    datasets: Object.entries(GRADIENT_COLORS).map(([key, colorConfig]) => ({
       label: key.charAt(0).toUpperCase() + key.slice(1),
       data: data.map((d: ChartItem) => d[key as ActivityType]),
       borderColor: selectedActivity ? 
-        (selectedActivity === key ? color.color : 'rgba(70, 70, 70, 0.5)') : 
-        color.color,
-      backgroundColor: (context) => {
+        (selectedActivity === key ? colorConfig.color : 'rgba(128, 128, 128, 0.5)') : 
+        colorConfig.color,
+      backgroundColor: (context: { chart: { ctx: CanvasRenderingContext2D } }) => {
         const ctx = context.chart.ctx
-        const gradient = createGradient(ctx, color)
-        return selectedActivity ? 
-          (selectedActivity === key ? gradient : 'rgba(70, 70, 70, 0.1)') : 
-          gradient
+        const gradient = ctx.createLinearGradient(0, 0, 0, 400)
+        if (selectedActivity && selectedActivity !== key) {
+          gradient.addColorStop(0, 'rgba(128, 128, 128, 0.3)')
+          gradient.addColorStop(1, 'rgba(128, 128, 128, 0.1)')
+        } else {
+          gradient.addColorStop(0, colorConfig.color + '80') // 50% opacity
+          gradient.addColorStop(1, colorConfig.color + '20') // 12% opacity
+        }
+        return gradient
       },
       fill: true,
       tension: 0.4,
       pointRadius: 0,
       pointHoverRadius: 4,
-      borderWidth: 2
+      borderWidth: selectedActivity === key ? 2 : 1,
+      borderDash: selectedActivity && selectedActivity !== key ? [] : undefined
     }))
   }
 
-  const options: ChartOptions<'line'> = {
+  const options: ChartOptions<ChartType> = {
     responsive: true,
     maintainAspectRatio: false,
     animation: {
@@ -133,10 +132,9 @@ const DailyActivityPatterns = ({ isDemoMode }: DailyActivityPatternsProps) => {
       x: {
         grid: {
           display: false,
-          border: { display: false }
         },
         ticks: {
-          color: 'rgba(255, 255, 255, 0.3)',
+          color: textColor,
           font: {
             size: 10
           },
@@ -147,10 +145,9 @@ const DailyActivityPatterns = ({ isDemoMode }: DailyActivityPatternsProps) => {
       y: {
         grid: {
           color: 'rgba(255, 255, 255, 0.15)',
-          border: { display: false }
         },
         ticks: {
-          color: 'rgba(255, 255, 255, 0.3)',
+          color: textColor,
           font: {
             size: 10
           }
@@ -201,89 +198,46 @@ const DailyActivityPatterns = ({ isDemoMode }: DailyActivityPatternsProps) => {
       flexDirection: 'column',
     }}>
       <Box sx={{ 
-        display: 'flex', 
-        justifyContent: 'flex-end',
-        mb: 1
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        mb: 2,
+        position: 'relative'
       }}>
-        <Select
-          value={chartType}
-          onChange={handleChartTypeChange}
-          size="small"
-          sx={{
-            height: '28px',
-            fontSize: '0.75rem',
-            fontWeight: 600,
-            color: '#ffffff',
-            backgroundColor: '#2A2A2A',
-            '& .MuiSelect-select': {
-              padding: '4px 14px',
-              fontWeight: 600,
-            },
-            '.MuiOutlinedInput-notchedOutline': {
-              borderColor: '#404040',
-              borderWidth: 2,
-            },
-            '&:hover': {
-              backgroundColor: '#333333',
-              '.MuiOutlinedInput-notchedOutline': {
-                borderColor: '#505050',
-                borderWidth: 2,
-              },
-            },
-            '&.Mui-focused': {
-              backgroundColor: '#333333',
-              '.MuiOutlinedInput-notchedOutline': {
-                borderColor: '#606060',
-                borderWidth: 2,
-              },
-            },
-            '.MuiSvgIcon-root': {
-              color: '#ffffff',
-            }
-          }}
-        >
-          <MenuItem 
-            value="bar" 
-            sx={{ 
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              color: '#ffffff',
-              backgroundColor: '#2A2A2A',
-              '&.Mui-selected': {
-                backgroundColor: '#404040',
-              },
+        <Box sx={{ 
+          fontSize: '1rem',
+          color: textColor,
+          fontWeight: 500,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          width: '100%'
+        }}>
+          Daily Activity Patterns
+          <IconButton
+            onClick={() => setDailyPatternsSettingsOpen?.(true)}
+            sx={{
+              padding: '4px',
+              color: textColor,
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
               '&:hover': {
-                backgroundColor: '#333333',
-              }
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              },
+              marginLeft: 'auto',
+              width: 24,
+              height: 24,
             }}
           >
-            Bar Chart
-          </MenuItem>
-          <MenuItem 
-            value="line" 
-            sx={{ 
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              color: '#ffffff',
-              backgroundColor: '#2A2A2A',
-              '&.Mui-selected': {
-                backgroundColor: '#404040',
-              },
-              '&:hover': {
-                backgroundColor: '#333333',
-              }
-            }}
-          >
-            Line Chart
-          </MenuItem>
-        </Select>
+            <Settings size={14} />
+          </IconButton>
+        </Box>
       </Box>
 
       <Box sx={{ height: '180px', mb: '2px' }}>
         {(() => {
           switch (chartType) {
             case 'bar':
-              return <Bar data={chartData} options={options} />
+              return <Bar data={chartData as ChartData<'bar'>} options={options} />
             case 'line':
               return <Line data={chartData} options={options} />
             default:
@@ -300,47 +254,48 @@ const DailyActivityPatterns = ({ isDemoMode }: DailyActivityPatternsProps) => {
         height: '24px',
         alignItems: 'center',
       }}>
-        {Object.entries(AREA_COLORS).map(([key, value]) => (
+        {Object.entries(GRADIENT_COLORS).map(([key, colorConfig]) => (
           <Box 
             key={key}
-            onClick={() => setSelectedActivity(
-              selectedActivity === key ? null : key as ActivityType
-            )}
+            onClick={() => {
+              if (selectedActivity === key) {
+                setSelectedActivity(null);
+              } else {
+                setSelectedActivity(key as ActivityType);
+              }
+            }}
             sx={{ 
               display: 'flex', 
               alignItems: 'center', 
               gap: 0.5,
-              opacity: selectedActivity && selectedActivity !== key ? 0.5 : 1,
-              transition: 'opacity 0.2s ease',
+              opacity: selectedActivity && selectedActivity !== key ? 0.3 : 1,
+              transition: 'all 0.3s ease',
               cursor: 'pointer',
-              p: '2px',
+              p: 0.5,
               borderRadius: 1,
-              minWidth: 'fit-content',
-              height: '20px',
               '&:hover': {
                 bgcolor: 'rgba(255, 255, 255, 0.1)',
+                transform: 'translateY(-1px)',
               },
               ...(selectedActivity === key && {
                 bgcolor: 'rgba(255, 255, 255, 0.15)',
+                transform: 'translateY(-1px)',
               })
             }}
           >
             <Box 
               sx={{ 
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                bgcolor: value.color,
-                flexShrink: 0
+                width: 12, 
+                height: 12, 
+                borderRadius: '50%', 
+                background: colorConfig.gradient,
+                border: '1px solid rgba(255, 255, 255, 0.2)'
               }} 
             />
             <Box sx={{ 
-              color: selectedActivity === key ? '#fff' : 'rgba(255, 255, 255, 0.7)',
-              fontSize: '0.7rem',
-              fontWeight: selectedActivity === key ? 600 : 400,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis'
+              color: selectedActivity === key ? '#fff' : 'rgba(255, 255, 255, 0.7)', 
+              fontSize: '0.75rem',
+              fontWeight: selectedActivity === key ? 600 : 400
             }}>
               {key.charAt(0).toUpperCase() + key.slice(1)}
             </Box>

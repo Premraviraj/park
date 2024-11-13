@@ -1,11 +1,14 @@
-import { Box } from '@mui/material'
+import { Box, Popover, IconButton, Drawer, FormControlLabel, Switch } from '@mui/material'
 import { ResponsivePie } from '@nivo/pie'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect } from 'react'
+import { HexColorPicker } from 'react-colorful'
+import { Settings } from 'lucide-react'
 
 // Add prop type
 interface DetectedObjectsProps {
   isDemoMode: boolean;
+  textColor: string;
 }
 
 // Update the data to be dynamic based on isDemoMode
@@ -37,10 +40,52 @@ const generateData = (isDemoMode: boolean) => [
   }
 ]
 
-const DetectedObjects = ({ isDemoMode }: DetectedObjectsProps) => {
+const DetectedObjects = ({ isDemoMode, textColor }: DetectedObjectsProps) => {
   const [selectedItem, setSelectedItem] = useState<string | null>(null)
   const [rotation, setRotation] = useState(-90)
-  const [data, setData] = useState(() => generateData(isDemoMode))
+
+  // Add color picker states
+  const [pieColors, setPieColors] = useState(() => {
+    const savedColors = localStorage.getItem('detectedObjectsColors')
+    return savedColors ? JSON.parse(savedColors) : {
+      Car: '#8884d8',
+      Human: '#82ca9d',
+      Bike: '#8dd1e1',
+      Truck: '#ffc658',
+      Bus: '#ff8042'
+    }
+  });
+
+  const [colorPickerAnchor, setColorPickerAnchor] = useState<{
+    element: HTMLElement | null;
+    type: string | null;
+  }>({ element: null, type: null });
+
+  // Add color change handler
+  const handleColorChange = (color: string) => {
+    if (colorPickerAnchor.type) {
+      const newColors = {
+        ...pieColors,
+        [colorPickerAnchor.type]: color
+      };
+      setPieColors(newColors);
+      localStorage.setItem('detectedObjectsColors', JSON.stringify(newColors));
+    }
+  };
+
+  // Update the data generation to use pieColors
+  const [data, setData] = useState(() => generateData(isDemoMode).map(item => ({
+    ...item,
+    color: pieColors[item.id]
+  })))
+
+  // Update data when colors change
+  useEffect(() => {
+    setData(generateData(isDemoMode).map(item => ({
+      ...item,
+      color: pieColors[item.id]
+    })))
+  }, [isDemoMode, pieColors])
 
   useEffect(() => {
     // Initial load animation
@@ -58,15 +103,31 @@ const DetectedObjects = ({ isDemoMode }: DetectedObjectsProps) => {
     }
   }, [selectedItem])
 
-  // Update data when isDemoMode changes
-  useEffect(() => {
-    setData(generateData(isDemoMode))
-  }, [isDemoMode])
-
   const getColor = (itemId: string, originalColor: string) => {
     if (!selectedItem) return originalColor
     return itemId === selectedItem ? originalColor : 'rgba(0, 0, 0, 0.5)'
   }
+
+  // Add this state for filter drawer and filters
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const [filters, setFilters] = useState<{ [key: string]: boolean }>(() => ({
+    Car: true,
+    Human: true,
+    Bike: true,
+    Truck: true,
+    Bus: true
+  }));
+
+  // Add filter change handler
+  const handleFilterChange = (objectType: string) => {
+    setFilters(prev => ({
+      ...prev,
+      [objectType]: !prev[objectType]
+    }));
+  };
+
+  // Update the data filtering
+  const filteredData = data.filter(item => filters[item.id]);
 
   return (
     <motion.div
@@ -74,12 +135,31 @@ const DetectedObjects = ({ isDemoMode }: DetectedObjectsProps) => {
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
     >
-      <Box sx={{ width: '100%', height: '100%' }}>
+      <Box sx={{ width: '100%', height: '100%', position: 'relative' }}>
+        {/* Settings icon without heading */}
+        <IconButton
+          onClick={() => setFilterDrawerOpen(true)}
+          sx={{
+            position: 'absolute',
+            right: 8,
+            top: 8,
+            padding: '4px',
+            color: textColor,
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            zIndex: 10,
+            '&:hover': {
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            }
+          }}
+        >
+          <Settings size={16} />
+        </IconButton>
+
         <Box sx={{ height: 200 }}>
           <ResponsivePie
-            data={data.map(item => ({
+            data={filteredData.map(item => ({
               ...item,
-              color: getColor(item.id, item.color),
+              color: getColor(item.id, pieColors[item.id]),
               value: item.id === selectedItem ? item.value * 1.2 : item.value
             }))}
             margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
@@ -203,7 +283,7 @@ const DetectedObjects = ({ isDemoMode }: DetectedObjectsProps) => {
           justifyContent: 'center'
         }}>
           <AnimatePresence>
-            {data.map(({ id: label, color }, index) => (
+            {filteredData.map(({ id: label }, index) => (
               <motion.div
                 key={label}
                 initial={{ opacity: 0, y: 10 }}
@@ -220,9 +300,19 @@ const DetectedObjects = ({ isDemoMode }: DetectedObjectsProps) => {
                 }}
                 onClick={() => {
                   if (selectedItem === label) {
-                    setSelectedItem(null)
+                    setSelectedItem(null);
                   } else {
-                    setSelectedItem(label)
+                    setSelectedItem(label);
+                  }
+                }}
+                onDoubleClick={(e) => {
+                  if (e.currentTarget === colorPickerAnchor.element) {
+                    setColorPickerAnchor({ element: null, type: null });
+                  } else {
+                    setColorPickerAnchor({ 
+                      element: e.currentTarget as HTMLElement, 
+                      type: label 
+                    });
                   }
                 }}
                 style={{ cursor: 'pointer' }}
@@ -242,10 +332,11 @@ const DetectedObjects = ({ isDemoMode }: DetectedObjectsProps) => {
                       width: 8,
                       height: 8,
                       borderRadius: '50%',
-                      bgcolor: selectedItem ? getColor(label, color) : color,
+                      bgcolor: pieColors[label],
                       flexShrink: 0,
                       boxShadow: selectedItem === label ? '0 0 8px rgba(255, 255, 255, 0.3)' : 'none',
-                      transition: 'all 0.3s ease'
+                      transition: 'all 0.3s ease',
+                      border: '1px solid rgba(255, 255, 255, 0.2)'
                     }}
                   />
                   <Box sx={{ 
@@ -261,6 +352,117 @@ const DetectedObjects = ({ isDemoMode }: DetectedObjectsProps) => {
             ))}
           </AnimatePresence>
         </Box>
+
+        {/* Add Color Picker Popover */}
+        <Popover
+          open={Boolean(colorPickerAnchor.element)}
+          anchorEl={colorPickerAnchor.element}
+          onClose={() => setColorPickerAnchor({ element: null, type: null })}
+          anchorOrigin={{
+            vertical: 'bottom',
+            horizontal: 'center',
+          }}
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'center',
+          }}
+          sx={{
+            '& .MuiPopover-paper': {
+              bgcolor: 'rgba(0, 0, 0, 0.85)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: 2,
+              p: 1
+            }
+          }}
+        >
+          <Box sx={{ p: 1 }}>
+            <HexColorPicker 
+              color={colorPickerAnchor.type ? pieColors[colorPickerAnchor.type] : '#000000'}
+              onChange={handleColorChange}
+              style={{ width: '200px' }}
+            />
+          </Box>
+        </Popover>
+
+        {/* Add the filter drawer */}
+        <Drawer
+          anchor="right"
+          open={filterDrawerOpen}
+          onClose={() => setFilterDrawerOpen(false)}
+          PaperProps={{
+            sx: {
+              width: 250,
+              bgcolor: 'rgba(0, 0, 0, 0.9)',
+              backdropFilter: 'blur(8px)',
+              p: 2,
+              '& .MuiSwitch-root': {
+                mr: 1
+              }
+            }
+          }}
+        >
+          <Box sx={{ 
+            color: textColor,
+            mb: 2,
+            fontSize: '1rem',
+            fontWeight: 500
+          }}>
+            Filter Objects
+          </Box>
+          {Object.entries(pieColors).map(([key, color]) => (
+            <FormControlLabel
+              key={key}
+              control={
+                <Switch
+                  checked={filters[key]}
+                  onChange={() => handleFilterChange(key)}
+                  size="small"
+                  sx={{
+                    '& .MuiSwitch-switchBase.Mui-checked': {
+                      color: color,
+                    },
+                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                      backgroundColor: color,
+                    },
+                    '& .MuiSwitch-track': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                    },
+                  }}
+                />
+              }
+              label={
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 1,
+                  color: filters[key] ? color : 'rgba(255, 255, 255, 0.5)',
+                  fontSize: '0.875rem',
+                  transition: 'color 0.3s ease'
+                }}>
+                  <Box 
+                    sx={{ 
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      bgcolor: color,
+                      opacity: filters[key] ? 1 : 0.5,
+                      transition: 'opacity 0.3s ease'
+                    }}
+                  />
+                  {key}
+                </Box>
+              }
+              sx={{
+                margin: 0,
+                py: 1,
+                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                '& .MuiFormControlLabel-label': {
+                  fontSize: '0.875rem'
+                }
+              }}
+            />
+          ))}
+        </Drawer>
       </Box>
     </motion.div>
   )

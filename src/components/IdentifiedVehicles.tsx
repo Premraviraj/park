@@ -1,4 +1,4 @@
-import { Box, Select, MenuItem, SelectChangeEvent } from '@mui/material'
+import { Box, Select, MenuItem, SelectChangeEvent, Popover } from '@mui/material'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -14,6 +14,9 @@ import {
 } from 'chart.js'
 import { Line, Bar } from 'react-chartjs-2'
 import { useState, useEffect } from 'react'
+import { HexColorPicker } from 'react-colorful'
+import { Settings } from 'lucide-react'
+import { IconButton, Drawer, FormControlLabel, Switch } from '@mui/material'
 
 ChartJS.register(
   CategoryScale,
@@ -26,34 +29,9 @@ ChartJS.register(
   Filler
 )
 
-const AREA_COLORS = {
-  in: {
-    color: 'rgba(130, 202, 157, 1)',
-    gradient: {
-      light: 'rgba(130, 202, 157, 0.3)',
-      dark: 'rgba(130, 202, 157, 0.1)'
-    }
-  },
-  out: {
-    color: 'rgba(244, 67, 54, 1)',
-    gradient: {
-      light: 'rgba(244, 67, 54, 0.3)',
-      dark: 'rgba(244, 67, 54, 0.1)'
-    }
-  },
-  unknown: {
-    color: 'rgba(102, 102, 102, 1)',
-    gradient: {
-      light: 'rgba(102, 102, 102, 0.3)',
-      dark: 'rgba(102, 102, 102, 0.1)'
-    }
-  }
-} as const
-
-type VehicleType = keyof typeof AREA_COLORS
-
 interface IdentifiedVehiclesProps {
   isDemoMode: boolean;
+  textColor: string;
 }
 
 const generateData = (currentTime: Date, minutes: number = 10, isDemoMode: boolean) => {
@@ -83,7 +61,11 @@ interface ChartItem {
   unknown: number;
 }
 
-const IdentifiedVehicles = ({ isDemoMode }: IdentifiedVehiclesProps) => {
+type ChartType = 'bar' | 'line'
+
+type VehicleType = 'in' | 'out' | 'unknown';
+
+const IdentifiedVehicles = ({ isDemoMode, textColor }: IdentifiedVehiclesProps) => {
   const [selectedType, setSelectedType] = useState<VehicleType | null>(null)
   const [currentTime, setCurrentTime] = useState(new Date())
   const [data, setData] = useState(() => generateData(new Date(), 10, isDemoMode))
@@ -91,7 +73,33 @@ const IdentifiedVehicles = ({ isDemoMode }: IdentifiedVehiclesProps) => {
   const [timeRange, setTimeRange] = useState('10')
   const [chartType, setChartType] = useState<ChartType>('line')
 
-  // Update data every minute
+  // Add color picker states
+  const [vehicleColors, setVehicleColors] = useState(() => {
+    const savedColors = localStorage.getItem('identifiedVehiclesColors')
+    return savedColors ? JSON.parse(savedColors) : {
+      in: 'rgba(130, 202, 157, 1)',
+      out: 'rgba(244, 67, 54, 1)',
+      unknown: 'rgba(102, 102, 102, 1)'
+    }
+  });
+
+  const [colorPickerAnchor, setColorPickerAnchor] = useState<{
+    element: HTMLElement | null;
+    type: VehicleType | null;
+  }>({ element: null, type: null });
+
+  // Add color change handler
+  const handleColorChange = (color: string) => {
+    if (colorPickerAnchor.type) {
+      const newColors = {
+        ...vehicleColors,
+        [colorPickerAnchor.type]: color
+      };
+      setVehicleColors(newColors);
+      localStorage.setItem('identifiedVehiclesColors', JSON.stringify(newColors));
+    }
+  };
+
   useEffect(() => {
     const updateData = async () => {
       setIsUpdating(true)
@@ -105,7 +113,6 @@ const IdentifiedVehicles = ({ isDemoMode }: IdentifiedVehiclesProps) => {
     return () => clearInterval(intervalId)
   }, [timeRange, isDemoMode])
 
-  // Update data immediately when selected type or timeRange changes
   useEffect(() => {
     setData(generateData(currentTime, parseInt(timeRange), isDemoMode))
   }, [selectedType, currentTime, timeRange, isDemoMode])
@@ -118,33 +125,36 @@ const IdentifiedVehicles = ({ isDemoMode }: IdentifiedVehiclesProps) => {
     setChartType(event.target.value as ChartType)
   }
 
-  const createGradient = (ctx: CanvasRenderingContext2D, color: typeof AREA_COLORS[VehicleType]) => {
+  const createGradient = (ctx: CanvasRenderingContext2D, color: string) => {
     const gradient = ctx.createLinearGradient(0, 0, 0, 400)
-    gradient.addColorStop(0, color.gradient.light)
-    gradient.addColorStop(1, color.gradient.dark)
+    gradient.addColorStop(0, color.replace('1)', '0.3)'))
+    gradient.addColorStop(1, color.replace('1)', '0.1)'))
     return gradient
   }
 
   const chartData: ChartData<'line'> = {
     labels: data.map((d: ChartItem) => d.time),
-    datasets: Object.entries(AREA_COLORS).map(([key, color]) => ({
+    datasets: Object.entries(vehicleColors).map(([key, color]) => ({
       label: key.charAt(0).toUpperCase() + key.slice(1),
       data: data.map((d: ChartItem) => d[key as VehicleType]),
       borderColor: selectedType ? 
-        (selectedType === key ? color.color : 'rgba(70, 70, 70, 0.5)') : 
-        color.color,
+        (selectedType === key ? color : 'rgba(200, 200, 200, 0.7)') : 
+        color,
       backgroundColor: (context) => {
         const ctx = context.chart.ctx
-        const gradient = createGradient(ctx, color)
         return selectedType ? 
-          (selectedType === key ? gradient : 'rgba(70, 70, 70, 0.1)') : 
-          gradient
+          (selectedType === key ? createGradient(ctx, color) : 'rgba(200, 200, 200, 0.3)') : 
+          createGradient(ctx, color)
       },
       fill: true,
       tension: 0.4,
       pointRadius: 0,
       pointHoverRadius: 4,
-      borderWidth: 2
+      borderWidth: selectedType === key ? 2 : 1,
+      borderDash: selectedType && selectedType !== key ? [] : undefined,
+      hidden: false,
+      order: selectedType === key ? 1 : 2,
+      zIndex: selectedType === key ? 2 : 1
     }))
   }
 
@@ -216,6 +226,10 @@ const IdentifiedVehicles = ({ isDemoMode }: IdentifiedVehiclesProps) => {
           title: (context) => {
             return data[context[0].dataIndex].displayTime;
           }
+        },
+        filter: (tooltipItem) => {
+          if (!selectedType) return true;
+          return tooltipItem.datasetIndex === datasets.findIndex(d => d.label?.toLowerCase() === selectedType);
         }
       }
     },
@@ -234,6 +248,42 @@ const IdentifiedVehicles = ({ isDemoMode }: IdentifiedVehiclesProps) => {
       position: 'relative'
     }}>
       <Box sx={{ 
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        mb: 2,
+        position: 'relative'
+      }}>
+        <Box sx={{ 
+          fontSize: '1rem',
+          color: textColor,
+          fontWeight: 500,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          width: '100%'
+        }}>
+          Identified Vehicles
+          <IconButton
+            onClick={() => setFilterDrawerOpen(true)}
+            sx={{
+              padding: '4px',
+              color: textColor,
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              '&:hover': {
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              },
+              marginLeft: 'auto',
+              width: 24,
+              height: 24,
+            }}
+          >
+            <Settings size={14} />
+          </IconButton>
+        </Box>
+      </Box>
+
+      <Box sx={{ 
         display: 'flex', 
         justifyContent: 'flex-end',
         gap: 1,
@@ -247,15 +297,14 @@ const IdentifiedVehicles = ({ isDemoMode }: IdentifiedVehiclesProps) => {
             height: '28px',
             fontSize: '0.75rem',
             fontWeight: 600,
-            color: '#ffffff',
-            backgroundColor: '#2A2A2A',
+            color: textColor,
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
             '& .MuiSelect-select': {
               padding: '4px 14px',
               fontWeight: 600,
             },
             '.MuiOutlinedInput-notchedOutline': {
-              borderColor: '#404040',
-              borderWidth: 2,
+              borderColor: textColor === '#ffffff' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
             },
             '&:hover': {
               backgroundColor: '#333333',
@@ -281,8 +330,8 @@ const IdentifiedVehicles = ({ isDemoMode }: IdentifiedVehiclesProps) => {
             sx={{ 
               fontSize: '0.75rem',
               fontWeight: 600,
-              color: '#ffffff',
-              backgroundColor: '#2A2A2A',
+              color: textColor,
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
               '&.Mui-selected': {
                 backgroundColor: '#404040',
               },
@@ -298,8 +347,8 @@ const IdentifiedVehicles = ({ isDemoMode }: IdentifiedVehiclesProps) => {
             sx={{ 
               fontSize: '0.75rem',
               fontWeight: 600,
-              color: '#ffffff',
-              backgroundColor: '#2A2A2A',
+              color: textColor,
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
               '&.Mui-selected': {
                 backgroundColor: '#404040',
               },
@@ -320,15 +369,14 @@ const IdentifiedVehicles = ({ isDemoMode }: IdentifiedVehiclesProps) => {
             height: '28px',
             fontSize: '0.75rem',
             fontWeight: 600,
-            color: '#ffffff',
-            backgroundColor: '#2A2A2A',
+            color: textColor,
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
             '& .MuiSelect-select': {
               padding: '4px 14px',
               fontWeight: 600,
             },
             '.MuiOutlinedInput-notchedOutline': {
-              borderColor: '#404040',
-              borderWidth: 2,
+              borderColor: textColor === '#ffffff' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
             },
             '&:hover': {
               backgroundColor: '#333333',
@@ -354,8 +402,8 @@ const IdentifiedVehicles = ({ isDemoMode }: IdentifiedVehiclesProps) => {
             sx={{ 
               fontSize: '0.75rem',
               fontWeight: 600,
-              color: '#ffffff',
-              backgroundColor: '#2A2A2A',
+              color: textColor,
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
               '&.Mui-selected': {
                 backgroundColor: '#404040',
               },
@@ -371,8 +419,8 @@ const IdentifiedVehicles = ({ isDemoMode }: IdentifiedVehiclesProps) => {
             sx={{ 
               fontSize: '0.75rem',
               fontWeight: 600,
-              color: '#ffffff',
-              backgroundColor: '#2A2A2A',
+              color: textColor,
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
               '&.Mui-selected': {
                 backgroundColor: '#404040',
               },
@@ -388,8 +436,8 @@ const IdentifiedVehicles = ({ isDemoMode }: IdentifiedVehiclesProps) => {
             sx={{ 
               fontSize: '0.75rem',
               fontWeight: 600,
-              color: '#ffffff',
-              backgroundColor: '#2A2A2A',
+              color: textColor,
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
               '&.Mui-selected': {
                 backgroundColor: '#404040',
               },
@@ -405,8 +453,8 @@ const IdentifiedVehicles = ({ isDemoMode }: IdentifiedVehiclesProps) => {
             sx={{ 
               fontSize: '0.75rem',
               fontWeight: 600,
-              color: '#ffffff',
-              backgroundColor: '#2A2A2A',
+              color: textColor,
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
               '&.Mui-selected': {
                 backgroundColor: '#404040',
               },
@@ -473,26 +521,42 @@ const IdentifiedVehicles = ({ isDemoMode }: IdentifiedVehiclesProps) => {
           flexShrink: 0
         }}
       >
-        {Object.entries(AREA_COLORS).map(([key, value]) => (
+        {Object.entries(vehicleColors).map(([key, color]) => (
           <Box 
             key={key}
-            onClick={() => setSelectedType(
-              selectedType === key ? null : key as VehicleType
-            )}
+            onClick={() => {
+              if (selectedType === key) {
+                setSelectedType(null);
+              } else {
+                setSelectedType(key as VehicleType);
+              }
+            }}
+            onDoubleClick={(e) => {
+              if (e.currentTarget === colorPickerAnchor.element) {
+                setColorPickerAnchor({ element: null, type: null });
+              } else {
+                setColorPickerAnchor({ 
+                  element: e.currentTarget as HTMLElement, 
+                  type: key as VehicleType 
+                });
+              }
+            }}
             sx={{ 
               display: 'flex', 
               alignItems: 'center', 
               gap: 0.5,
-              opacity: selectedType && selectedType !== key ? 0.5 : 1,
-              transition: 'opacity 0.2s ease',
+              opacity: selectedType && selectedType !== key ? 0.7 : 1,
+              transition: 'all 0.3s ease',
               cursor: 'pointer',
               p: 0.5,
               borderRadius: 1,
               '&:hover': {
                 bgcolor: 'rgba(255, 255, 255, 0.1)',
+                transform: 'translateY(-1px)',
               },
               ...(selectedType === key && {
                 bgcolor: 'rgba(255, 255, 255, 0.15)',
+                transform: 'translateY(-1px)',
               })
             }}
           >
@@ -501,7 +565,8 @@ const IdentifiedVehicles = ({ isDemoMode }: IdentifiedVehiclesProps) => {
                 width: 12, 
                 height: 12, 
                 borderRadius: '50%', 
-                bgcolor: value.color
+                bgcolor: color,
+                border: '1px solid rgba(255, 255, 255, 0.2)'
               }} 
             />
             <Box sx={{ 
@@ -514,6 +579,36 @@ const IdentifiedVehicles = ({ isDemoMode }: IdentifiedVehiclesProps) => {
           </Box>
         ))}
       </Box>
+
+      <Popover
+        open={Boolean(colorPickerAnchor.element)}
+        anchorEl={colorPickerAnchor.element}
+        onClose={() => setColorPickerAnchor({ element: null, type: null })}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'center',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'center',
+        }}
+        sx={{
+          '& .MuiPopover-paper': {
+            bgcolor: 'rgba(0, 0, 0, 0.85)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: 2,
+            p: 1
+          }
+        }}
+      >
+        <Box sx={{ p: 1 }}>
+          <HexColorPicker 
+            color={colorPickerAnchor.type ? vehicleColors[colorPickerAnchor.type] : '#000000'}
+            onChange={handleColorChange}
+            style={{ width: '200px' }}
+          />
+        </Box>
+      </Popover>
     </Box>
   )
 }

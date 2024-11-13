@@ -1,10 +1,12 @@
-import { Box } from '@mui/material'
+import { Box, Popover } from '@mui/material'
 import { ResponsivePie } from '@nivo/pie'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect } from 'react'
+import { HexColorPicker } from 'react-colorful'
 
 interface DetectedObjectsByCameraProps {
   isDemoMode: boolean;
+  textColor: string;
 }
 
 const generateData = (isDemoMode: boolean) => [
@@ -20,13 +22,51 @@ const generateData = (isDemoMode: boolean) => [
   }
 ]
 
-const DetectedObjectsByCamera = ({ isDemoMode }: DetectedObjectsByCameraProps) => {
+const DetectedObjectsByCamera = ({ isDemoMode, textColor }: DetectedObjectsByCameraProps) => {
   const [selectedItem, setSelectedItem] = useState<string | null>(null)
   const [rotation, setRotation] = useState(-90)
-  const [data, setData] = useState(() => generateData(isDemoMode))
+
+  // Add color picker states
+  const [pieColors, setPieColors] = useState(() => {
+    const savedColors = localStorage.getItem('detectedObjectsByCameraColors')
+    return savedColors ? JSON.parse(savedColors) : {
+      'South Parking (Q1656-LE)': '#4169E1',
+      'Parking exit (Q1656)': '#40E0D0'
+    }
+  });
+
+  const [colorPickerAnchor, setColorPickerAnchor] = useState<{
+    element: HTMLElement | null;
+    type: string | null;
+  }>({ element: null, type: null });
+
+  // Add color change handler
+  const handleColorChange = (color: string) => {
+    if (colorPickerAnchor.type) {
+      const newColors = {
+        ...pieColors,
+        [colorPickerAnchor.type]: color
+      };
+      setPieColors(newColors);
+      localStorage.setItem('detectedObjectsByCameraColors', JSON.stringify(newColors));
+    }
+  };
+
+  // Update the data generation to use pieColors
+  const [data, setData] = useState(() => generateData(isDemoMode).map(item => ({
+    ...item,
+    color: pieColors[item.id]
+  })))
+
+  // Update data when colors change
+  useEffect(() => {
+    setData(generateData(isDemoMode).map(item => ({
+      ...item,
+      color: pieColors[item.id]
+    })))
+  }, [isDemoMode, pieColors])
 
   useEffect(() => {
-    // Initial load animation
     const timer = setTimeout(() => {
       setRotation(270)
     }, 100)
@@ -35,16 +75,10 @@ const DetectedObjectsByCamera = ({ isDemoMode }: DetectedObjectsByCameraProps) =
   }, [])
 
   useEffect(() => {
-    // Rotation animation on selection
     if (selectedItem) {
       setRotation(prev => prev + 360)
     }
   }, [selectedItem])
-
-  // Update data when isDemoMode changes
-  useEffect(() => {
-    setData(generateData(isDemoMode))
-  }, [isDemoMode])
 
   const getColor = (itemId: string, originalColor: string) => {
     if (!selectedItem) return originalColor
@@ -62,7 +96,7 @@ const DetectedObjectsByCamera = ({ isDemoMode }: DetectedObjectsByCameraProps) =
           <ResponsivePie
             data={data.map(item => ({
               ...item,
-              color: getColor(item.id, item.color),
+              color: getColor(item.id, pieColors[item.id]),
               value: item.id === selectedItem ? item.value * 1.2 : item.value
             }))}
             margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
@@ -86,11 +120,11 @@ const DetectedObjectsByCamera = ({ isDemoMode }: DetectedObjectsByCameraProps) =
             transitionMode="startAngle"
             theme={{
               background: 'transparent',
-              text: { fill: 'rgba(255, 255, 255, 0.7)' },
+              text: { fill: textColor },
               tooltip: {
                 container: {
                   background: 'rgba(0, 0, 0, 0.8)',
-                  color: 'rgba(255, 255, 255, 0.7)',
+                  color: textColor,
                   fontSize: '12px',
                   borderRadius: '4px',
                   boxShadow: '0 2px 8px rgba(0, 0, 0, 0.5)',
@@ -149,7 +183,7 @@ const DetectedObjectsByCamera = ({ isDemoMode }: DetectedObjectsByCameraProps) =
                         dominantBaseline="central"
                         style={{
                           fontSize: '14px',
-                          fill: 'rgba(255, 255, 255, 0.9)',
+                          fill: textColor,
                           fontWeight: 'bold'
                         }}
                       >
@@ -162,7 +196,7 @@ const DetectedObjectsByCamera = ({ isDemoMode }: DetectedObjectsByCameraProps) =
                         dominantBaseline="central"
                         style={{
                           fontSize: '12px',
-                          fill: 'rgba(255, 255, 255, 0.7)',
+                          fill: textColor,
                         }}
                       >
                         {selectedItem.length > 15 ? `${selectedItem.slice(0, 15)}...` : selectedItem}
@@ -185,7 +219,7 @@ const DetectedObjectsByCamera = ({ isDemoMode }: DetectedObjectsByCameraProps) =
           overflow: 'hidden'
         }}>
           <AnimatePresence>
-            {data.map(({ id: label, color }, index) => (
+            {data.map(({ id: label }, index) => (
               <motion.div
                 key={label}
                 initial={{ opacity: 0, x: -20 }}
@@ -202,9 +236,19 @@ const DetectedObjectsByCamera = ({ isDemoMode }: DetectedObjectsByCameraProps) =
                 }}
                 onClick={() => {
                   if (selectedItem === label) {
-                    setSelectedItem(null)
+                    setSelectedItem(null);
                   } else {
-                    setSelectedItem(label)
+                    setSelectedItem(label);
+                  }
+                }}
+                onDoubleClick={(e) => {
+                  if (e.currentTarget === colorPickerAnchor.element) {
+                    setColorPickerAnchor({ element: null, type: null });
+                  } else {
+                    setColorPickerAnchor({ 
+                      element: e.currentTarget as HTMLElement, 
+                      type: label 
+                    });
                   }
                 }}
                 style={{ cursor: 'pointer' }}
@@ -224,10 +268,11 @@ const DetectedObjectsByCamera = ({ isDemoMode }: DetectedObjectsByCameraProps) =
                       width: 8,
                       height: 8,
                       borderRadius: '50%',
-                      bgcolor: selectedItem ? getColor(label, color) : color,
+                      bgcolor: pieColors[label],
                       flexShrink: 0,
                       boxShadow: selectedItem === label ? '0 0 8px rgba(255, 255, 255, 0.3)' : 'none',
-                      transition: 'all 0.3s ease'
+                      transition: 'all 0.3s ease',
+                      border: '1px solid rgba(255, 255, 255, 0.2)'
                     }}
                   />
                   <Box sx={{ 
@@ -246,6 +291,36 @@ const DetectedObjectsByCamera = ({ isDemoMode }: DetectedObjectsByCameraProps) =
             ))}
           </AnimatePresence>
         </Box>
+
+        <Popover
+          open={Boolean(colorPickerAnchor.element)}
+          anchorEl={colorPickerAnchor.element}
+          onClose={() => setColorPickerAnchor({ element: null, type: null })}
+          anchorOrigin={{
+            vertical: 'bottom',
+            horizontal: 'center',
+          }}
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'center',
+          }}
+          sx={{
+            '& .MuiPopover-paper': {
+              bgcolor: 'rgba(0, 0, 0, 0.85)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: 2,
+              p: 1
+            }
+          }}
+        >
+          <Box sx={{ p: 1 }}>
+            <HexColorPicker 
+              color={colorPickerAnchor.type ? pieColors[colorPickerAnchor.type] : '#000000'}
+              onChange={handleColorChange}
+              style={{ width: '200px' }}
+            />
+          </Box>
+        </Popover>
       </Box>
     </motion.div>
   )

@@ -1,4 +1,4 @@
-import { Box, Select, MenuItem, SelectChangeEvent } from '@mui/material'
+import { Box, IconButton } from '@mui/material'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -15,6 +15,7 @@ import {
 } from 'chart.js'
 import { Bar, Line, Scatter, Bubble } from 'react-chartjs-2'
 import { useState, useEffect } from 'react'
+import { Settings, X } from 'lucide-react'
 
 ChartJS.register(
   CategoryScale,
@@ -41,6 +42,12 @@ type ActivityType = keyof typeof BAR_COLORS
 // Add prop type
 interface ActivityHistoryProps {
   isDemoMode: boolean;
+  textColor: string;
+  setActivitySettingsOpen: (open: boolean) => void;
+  chartType: string;
+  barColors: { [key: string]: string };
+  onChartTypeChange: (type: string) => void;
+  onColorChange: (key: string, color: string) => void;
 }
 
 const generateData = (currentTime: Date, minutes: number = 10, isDemoMode: boolean) => {
@@ -124,13 +131,29 @@ const createGradient = (ctx: CanvasRenderingContext2D, color: typeof GRADIENT_CO
   return gradient
 }
 
-const ActivityHistory = ({ isDemoMode }: ActivityHistoryProps) => {
+const ActivityHistory = ({ 
+  isDemoMode, 
+  textColor, 
+  setActivitySettingsOpen,
+  chartType,
+  barColors,
+  onChartTypeChange,
+  onColorChange
+}: ActivityHistoryProps) => {
   const [selectedActivity, setSelectedActivity] = useState<ActivityType | null>(null)
   const [currentTime, setCurrentTime] = useState(new Date())
   const [data, setData] = useState(() => generateData(new Date(), 10, isDemoMode))
   const [isUpdating, setIsUpdating] = useState(false)
-  const [timeRange, setTimeRange] = useState('10')
-  const [chartType, setChartType] = useState<ChartType>('bar')
+  const [timeRange] = useState('10')
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
+  const [filters, setFilters] = useState<{ [key: string]: boolean }>(() => ({
+    car: true,
+    human: true,
+    bike: true,
+    truck: true,
+    bus: true
+  }));
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Update data every minute
   useEffect(() => {
@@ -153,63 +176,60 @@ const ActivityHistory = ({ isDemoMode }: ActivityHistoryProps) => {
   }, [selectedActivity, currentTime, timeRange, isDemoMode])
 
   const getChartData = (type: ChartType): ChartData<typeof type> => {
-    const baseConfig = Object.entries(BAR_COLORS).map(([key, color]) => {
-      const baseDataset = {
-        label: key.charAt(0).toUpperCase() + key.slice(1),
-        borderColor: color,
-        backgroundColor: selectedActivity ? 
-          (selectedActivity === key ? color : 'rgba(70, 70, 70, 0.2)') : 
-          color,
-        borderWidth: selectedActivity === key ? 2 : 1,
-        opacity: selectedActivity ? (selectedActivity === key ? 1 : 0.3) : 1,
-      }
-
-      if (type === 'bar') {
-        return {
-          ...baseDataset,
-          data: data.map((d: ChartItem) => d[key as ActivityType]),
-          borderRadius: 4,
-          borderSkipped: false,
-          stack: 'stack1',
+    const baseConfig = Object.entries(barColors)
+      .filter(([key]) => filters[key])
+      .map(([key, color]) => {
+        const baseDataset = {
+          label: key.charAt(0).toUpperCase() + key.slice(1),
+          borderColor: color,
+          backgroundColor: color,
+          borderWidth: 2,
+          opacity: 1,
         }
-      }
 
-      if (type === 'line') {
-        return {
-          ...baseDataset,
-          data: data.map((d: ChartItem) => d[key as ActivityType]),
-          borderColor: selectedActivity ? 
-            (selectedActivity === key ? GRADIENT_COLORS[key as ActivityType].color : 'rgba(70, 70, 70, 0.5)') : 
-            GRADIENT_COLORS[key as ActivityType].color,
-          backgroundColor: (context) => {
-            const ctx = context.chart.ctx
-            const gradient = createGradient(ctx, GRADIENT_COLORS[key as ActivityType])
-            return selectedActivity ? 
-              (selectedActivity === key ? gradient : 'rgba(70, 70, 70, 0.1)') : 
-              gradient
-          },
-          fill: true,
-          tension: 0.4,
-          pointRadius: 0,
-          pointHoverRadius: 4,
+        if (type === 'bar') {
+          return {
+            ...baseDataset,
+            data: data.map((d: ChartItem) => d[key as ActivityType]),
+            borderRadius: 4,
+            borderSkipped: false,
+            stack: 'stack1',
+          }
         }
-      }
 
-      if (type === 'scatter' || type === 'bubble') {
-        return {
-          ...baseDataset,
-          data: data.map((d: ChartItem, index) => ({
-            x: index,
-            y: d[key as ActivityType],
-            r: type === 'bubble' ? d[key as ActivityType] / 3 : undefined
-          })),
-          pointRadius: 4,
-          pointHoverRadius: 6,
+        if (type === 'line') {
+          return {
+            ...baseDataset,
+            data: data.map((d: ChartItem) => d[key as ActivityType]),
+            backgroundColor: (context) => {
+              const ctx = context.chart.ctx
+              const gradient = ctx.createLinearGradient(0, 0, 0, 400)
+              gradient.addColorStop(0, color.replace('1)', '0.3)'))
+              gradient.addColorStop(1, color.replace('1)', '0.1)'))
+              return gradient
+            },
+            fill: true,
+            tension: 0.4,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+          }
         }
-      }
 
-      return baseDataset
-    })
+        if (type === 'scatter' || type === 'bubble') {
+          return {
+            ...baseDataset,
+            data: data.map((d: ChartItem, index) => ({
+              x: index,
+              y: d[key as ActivityType],
+              r: type === 'bubble' ? d[key as ActivityType] / 3 : undefined
+            })),
+            pointRadius: 4,
+            pointHoverRadius: 6,
+          }
+        }
+
+        return baseDataset
+      })
 
     return {
       labels: data.map((d: ChartItem) => d.time),
@@ -293,13 +313,16 @@ const ActivityHistory = ({ isDemoMode }: ActivityHistoryProps) => {
     }
   }
 
-  const handleTimeRangeChange = (event: SelectChangeEvent<string>) => {
-    setTimeRange(event.target.value)
+  const handleChartTypeChange = (event: SelectChangeEvent<ChartType>) => {
+    onChartTypeChange(event.target.value);
   }
 
-  const handleChartTypeChange = (event: SelectChangeEvent<ChartType>) => {
-    setChartType(event.target.value as ChartType)
-  }
+  const handleFilterChange = (activityType: string) => {
+    setFilters(prev => ({
+      ...prev,
+      [activityType]: !prev[activityType]
+    }));
+  };
 
   return (
     <Box sx={{ 
@@ -309,225 +332,34 @@ const ActivityHistory = ({ isDemoMode }: ActivityHistoryProps) => {
       flexDirection: 'column',
       position: 'relative'
     }}>
+      <>
+        <IconButton
+          onClick={() => setActivitySettingsOpen(true)}
+          sx={{
+            position: 'absolute',
+            right: 8,
+            top: 8,
+            padding: '4px',
+            color: textColor,
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            zIndex: 10,
+            '&:hover': {
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            }
+          }}
+        >
+          <Settings size={16} />
+        </IconButton>
+      </>
+
       <Box sx={{ 
         display: 'flex', 
         justifyContent: 'flex-end',
         gap: 1,
-        mb: 1
+        mb: 1,
+        mt: 1
       }}>
-        <Select
-          value={chartType}
-          onChange={handleChartTypeChange}
-          size="small"
-          sx={{
-            height: '28px',
-            fontSize: '0.75rem',
-            fontWeight: 600,
-            color: '#ffffff',
-            backgroundColor: '#2A2A2A',
-            '& .MuiSelect-select': {
-              padding: '4px 14px',
-              fontWeight: 600,
-            },
-            '.MuiOutlinedInput-notchedOutline': {
-              borderColor: '#404040',
-              borderWidth: 2,
-            },
-            '&:hover': {
-              backgroundColor: '#333333',
-              '.MuiOutlinedInput-notchedOutline': {
-                borderColor: '#505050',
-                borderWidth: 2,
-              },
-            },
-            '&.Mui-focused': {
-              backgroundColor: '#333333',
-              '.MuiOutlinedInput-notchedOutline': {
-                borderColor: '#606060',
-                borderWidth: 2,
-              },
-            },
-            '.MuiSvgIcon-root': {
-              color: '#ffffff',
-            }
-          }}
-        >
-          <MenuItem 
-            value="bar" 
-            sx={{ 
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              color: '#ffffff',
-              backgroundColor: '#2A2A2A',
-              '&.Mui-selected': {
-                backgroundColor: '#404040',
-              },
-              '&:hover': {
-                backgroundColor: '#333333',
-              }
-            }}
-          >
-            Bar Chart
-          </MenuItem>
-          <MenuItem 
-            value="line" 
-            sx={{ 
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              color: '#ffffff',
-              backgroundColor: '#2A2A2A',
-              '&.Mui-selected': {
-                backgroundColor: '#404040',
-              },
-              '&:hover': {
-                backgroundColor: '#333333',
-              }
-            }}
-          >
-            Line Chart
-          </MenuItem>
-          <MenuItem 
-            value="scatter" 
-            sx={{ 
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              color: '#ffffff',
-              backgroundColor: '#2A2A2A',
-              '&.Mui-selected': {
-                backgroundColor: '#404040',
-              },
-              '&:hover': {
-                backgroundColor: '#333333',
-              }
-            }}
-          >
-            Scatter Plot
-          </MenuItem>
-          <MenuItem 
-            value="bubble" 
-            sx={{ 
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              color: '#ffffff',
-              backgroundColor: '#2A2A2A',
-              '&.Mui-selected': {
-                backgroundColor: '#404040',
-              },
-              '&:hover': {
-                backgroundColor: '#333333',
-              }
-            }}
-          >
-            Bubble Chart
-          </MenuItem>
-        </Select>
-
-        <Select
-          value={timeRange}
-          onChange={handleTimeRangeChange}
-          size="small"
-          sx={{
-            height: '28px',
-            fontSize: '0.75rem',
-            fontWeight: 600,
-            color: '#ffffff',
-            backgroundColor: '#2A2A2A',
-            '& .MuiSelect-select': {
-              padding: '4px 14px',
-              fontWeight: 600,
-            },
-            '.MuiOutlinedInput-notchedOutline': {
-              borderColor: '#404040',
-              borderWidth: 2,
-            },
-            '&:hover': {
-              backgroundColor: '#333333',
-              '.MuiOutlinedInput-notchedOutline': {
-                borderColor: '#505050',
-                borderWidth: 2,
-              },
-            },
-            '&.Mui-focused': {
-              backgroundColor: '#333333',
-              '.MuiOutlinedInput-notchedOutline': {
-                borderColor: '#606060',
-                borderWidth: 2,
-              },
-            },
-            '.MuiSvgIcon-root': {
-              color: '#ffffff',
-            }
-          }}
-        >
-          <MenuItem 
-            value="5" 
-            sx={{ 
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              color: '#ffffff',
-              backgroundColor: '#2A2A2A',
-              '&.Mui-selected': {
-                backgroundColor: '#404040',
-              },
-              '&:hover': {
-                backgroundColor: '#333333',
-              }
-            }}
-          >
-            Last 5 minutes
-          </MenuItem>
-          <MenuItem 
-            value="10" 
-            sx={{ 
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              color: '#ffffff',
-              backgroundColor: '#2A2A2A',
-              '&.Mui-selected': {
-                backgroundColor: '#404040',
-              },
-              '&:hover': {
-                backgroundColor: '#333333',
-              }
-            }}
-          >
-            Last 10 minutes
-          </MenuItem>
-          <MenuItem 
-            value="15" 
-            sx={{ 
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              color: '#ffffff',
-              backgroundColor: '#2A2A2A',
-              '&.Mui-selected': {
-                backgroundColor: '#404040',
-              },
-              '&:hover': {
-                backgroundColor: '#333333',
-              }
-            }}
-          >
-            Last 15 minutes
-          </MenuItem>
-          <MenuItem 
-            value="30" 
-            sx={{ 
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              color: '#ffffff',
-              backgroundColor: '#2A2A2A',
-              '&.Mui-selected': {
-                backgroundColor: '#404040',
-              },
-              '&:hover': {
-                backgroundColor: '#333333',
-              }
-            }}
-          >
-            Last 30 minutes
-          </MenuItem>
-        </Select>
+        {/* Remove the Select component that was here */}
       </Box>
 
       {isUpdating && (
@@ -597,49 +429,55 @@ const ActivityHistory = ({ isDemoMode }: ActivityHistoryProps) => {
           flexShrink: 0
         }}
       >
-        {Object.entries(BAR_COLORS).map(([key, color]) => (
-          <Box 
-            key={key}
-            onClick={() => {
-              setSelectedActivity(selectedActivity === key ? null : key as ActivityType)
-              setData([...data])
-            }}
-            sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 0.5,
-              opacity: selectedActivity && selectedActivity !== key ? 0.3 : 1,
-              transition: 'all 0.3s ease',
-              cursor: 'pointer',
-              p: 0.5,
-              borderRadius: 1,
-              '&:hover': {
-                bgcolor: 'rgba(255, 255, 255, 0.1)',
-                transform: 'translateY(-1px)',
-              },
-              ...(selectedActivity === key && {
-                bgcolor: 'rgba(255, 255, 255, 0.15)',
-                transform: 'translateY(-1px)',
-              })
-            }}
-          >
+        {Object.entries(barColors)
+          .filter(([key]) => filters[key])
+          .map(([key, color]) => (
             <Box 
+              key={key}
+              onClick={() => {
+                if (selectedActivity === key) {
+                  setSelectedActivity(null);
+                } else {
+                  setSelectedActivity(key as ActivityType);
+                }
+              }}
               sx={{ 
-                width: 12, 
-                height: 12, 
-                borderRadius: '50%', 
-                bgcolor: color
-              }} 
-            />
-            <Box sx={{ 
-              color: selectedActivity === key ? '#fff' : 'rgba(255, 255, 255, 0.7)', 
-              fontSize: '0.75rem',
-              fontWeight: selectedActivity === key ? 600 : 400
-            }}>
-              {key.charAt(0).toUpperCase() + key.slice(1)}
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: 0.5,
+                opacity: selectedActivity && selectedActivity !== key ? 0.3 : 1,
+                transition: 'all 0.3s ease',
+                cursor: 'pointer',
+                p: 0.5,
+                borderRadius: 1,
+                '&:hover': {
+                  bgcolor: 'rgba(255, 255, 255, 0.1)',
+                  transform: 'translateY(-1px)',
+                },
+                ...(selectedActivity === key && {
+                  bgcolor: 'rgba(255, 255, 255, 0.15)',
+                  transform: 'translateY(-1px)',
+                })
+              }}
+            >
+              <Box 
+                sx={{ 
+                  width: 12, 
+                  height: 12, 
+                  borderRadius: '50%', 
+                  bgcolor: color,
+                  border: '1px solid rgba(255, 255, 255, 0.2)'
+                }} 
+              />
+              <Box sx={{ 
+                color: selectedActivity === key ? '#fff' : 'rgba(255, 255, 255, 0.7)', 
+                fontSize: '0.75rem',
+                fontWeight: selectedActivity === key ? 600 : 400
+              }}>
+                {key.charAt(0).toUpperCase() + key.slice(1)}
+              </Box>
             </Box>
-          </Box>
-        ))}
+          ))}
       </Box>
     </Box>
   )

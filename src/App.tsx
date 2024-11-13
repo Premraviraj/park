@@ -1,4 +1,5 @@
-import { Box, Grid, Button, useTheme, useMediaQuery, Switch, FormControlLabel, Drawer, List, ListItem, ListItemText, IconButton } from '@mui/material'
+import { Box, Grid, Button, useTheme, useMediaQuery, Switch, FormControlLabel, List, ListItem, ListItemText, IconButton, Popover, Select, MenuItem } from '@mui/material'
+import { LogOut, Download, Palette as PaletteIcon, Menu as MenuIcon, Settings, Bell, HelpCircle, X } from 'lucide-react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import Login from './pages/auth/Login'
@@ -15,9 +16,6 @@ import logo from './assets/logo.webp'
 import GridLayout from 'react-grid-layout'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
-import { LogOut, ChevronRight, ChevronLeft, Download } from 'lucide-react'
-import jsPDF from 'jspdf'
-import 'jspdf-autotable'
 
 // Animation variants for staggered children
 const containerVariants = {
@@ -84,34 +82,11 @@ interface AutoTableOutput {
 // Add this interface for jsPDF
 declare module 'jspdf' {
   interface jsPDF {
-    autoTable: (options: {
-      startY?: number;
-      head?: string[][];
-      body: string[][];
-      theme?: string;
-      headStyles?: {
-        fillColor: number[];
-      };
-      styles?: {
-        fontSize: number;
-      };
-      margin?: {
-        left: number;
-        right: number;
-      };
-    }) => void;
-    lastAutoTable: AutoTableOutput;
-    internal: {
-      pageSize: {
-        width: number;
-        height: number;
-      };
-      getNumberOfPages: () => number;
-    };
+    autoTable: (options: any) => any;
   }
 }
 
-// Move widgets array before the Dashboard component
+// Make sure this is outside the Dashboard component
 const widgets = [
   { id: 'activity', title: 'Activity History' },
   { id: 'patterns', title: 'Daily Activity Patterns' },
@@ -121,6 +96,56 @@ const widgets = [
   { id: 'objects', title: 'Detected Objects' },
   { id: 'objectsByCamera', title: 'Objects by Camera' }
 ];
+
+// Update the GRADIENT_PACKS constant
+const GRADIENT_PACKS = [
+  {
+    name: 'Midnight',
+    value: '#121212',
+    gradient: 'linear-gradient(135deg, #121212 0%, #1a237e 100%)',
+    background: 'linear-gradient(135deg, #121212 0%, #1a237e 100%)'
+  },
+  {
+    name: 'Ocean',
+    value: '#0A1929',
+    gradient: 'linear-gradient(135deg, #0A1929 0%, #004d7a 100%)',
+    background: 'linear-gradient(135deg, #0A1929 0%, #004d7a 100%)'
+  },
+  {
+    name: 'Forest',
+    value: '#1A2F1A',
+    gradient: 'linear-gradient(135deg, #1A2F1A 0%, #2E7D32 100%)',
+    background: 'linear-gradient(135deg, #1A2F1A 0%, #2E7D32 100%)'
+  },
+  {
+    name: 'Sunset',
+    value: '#1A1A2F',
+    gradient: 'linear-gradient(135deg, #1A1A2F 0%, #FF6B6B 100%)',
+    background: 'linear-gradient(135deg, #1A1A2F 0%, #FF6B6B 100%)'
+  },
+  {
+    name: 'Aurora',
+    value: '#1F1F1F',
+    gradient: 'linear-gradient(135deg, #1F1F1F 0%, #00C9FF 100%)',
+    background: 'linear-gradient(135deg, #1F1F1F 0%, #00C9FF 100%)'
+  },
+  {
+    name: 'Volcanic',
+    value: '#1A1A1A',
+    gradient: 'linear-gradient(135deg, #1A1A1A 0%, #FF4B2B 100%)',
+    background: 'linear-gradient(135deg, #1A1A1A 0%, #FF4B2B 100%)'
+  },
+  {
+    name: 'Raven',
+    value: '#1E1E1E',
+    gradient: 'linear-gradient(135deg, #1E1E1E 0%, #2C2C2C 100%)',
+    background: 'linear-gradient(135deg, #1E1E1E 0%, #2C2C2C 100%)'
+  }
+];
+
+// Add these type definitions at the top
+type ChartType = 'bar' | 'line' | 'scatter' | 'bubble';
+type ActivityType = 'car' | 'human' | 'bike' | 'truck' | 'bus';
 
 const Dashboard = () => {
   const navigate = useNavigate()
@@ -133,8 +158,6 @@ const Dashboard = () => {
     const savedDemoMode = localStorage.getItem('isDemoMode')
     return savedDemoMode ? JSON.parse(savedDemoMode) : true // Default to true if not set
   })
-  const [showUsername, setShowUsername] = useState(false)
-  const usernameDropdownRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(window.innerWidth * 0.98)
   const containerRef = useRef<HTMLDivElement>(null)
   const [layouts, setLayouts] = useState<{ lg: LayoutItem[] }>(() => {
@@ -152,12 +175,8 @@ const Dashboard = () => {
       lg: savedLayout ? JSON.parse(savedLayout) : defaultLayout
     }
   })
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  // Add this state to track visible widgets
   const [visibleWidgets, setVisibleWidgets] = useState<string[]>(() => {
     const savedVisibleWidgets = localStorage.getItem('visibleWidgets')
-    // If no saved state, show all widgets by default
     return savedVisibleWidgets ? JSON.parse(savedVisibleWidgets) : widgets.map(w => w.id)
   })
 
@@ -172,6 +191,31 @@ const Dashboard = () => {
     isDragging: false,
     draggedWidget: null
   });
+
+  const [colorAnchorEl, setColorAnchorEl] = useState<null | HTMLElement>(null)
+  const [selectedColor, setSelectedColor] = useState(() => {
+    const savedColor = localStorage.getItem('selectedColor')
+    return savedColor || '#121212' // Default dark theme
+  })
+
+  const [textColor, setTextColor] = useState(() => {
+    const savedTextColor = localStorage.getItem('textColor')
+    return savedTextColor || '#ffffff' // Default white text
+  })
+
+  const themeColors = [
+    { name: 'Dark', value: '#121212' },
+    { name: 'Navy', value: '#0A1929' },
+    { name: 'Forest', value: '#1A2F1A' },
+    { name: 'Deep Purple', value: '#1A1A2F' },
+    { name: 'Charcoal', value: '#1F1F1F' }
+  ]
+
+  const handleColorChange = (color: string) => {
+    setSelectedColor(color)
+    setColorAnchorEl(null)
+    // You can add logic here to update the theme globally
+  }
 
   useEffect(() => {
     // Get user info from localStorage
@@ -380,6 +424,156 @@ const Dashboard = () => {
     }
   }
 
+  const getContrastTextColor = (bgColor: string) => {
+    // For gradient backgrounds, use the first color (start color)
+    const color = bgColor.includes('linear-gradient') 
+      ? bgColor.match(/#[a-fA-F0-9]{6}/)?.[0] || '#FFFFFF'
+      : bgColor;
+
+    const rgb = parseInt(color.slice(1), 16);
+    const r = (rgb >> 16) & 0xff;
+    const g = (rgb >>  8) & 0xff;
+    const b = (rgb >>  0) & 0xff;
+    const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    
+    return luma < 180 ? '#FFFFFF' : '#000000';  // Adjusted threshold for better contrast
+  };
+
+  useEffect(() => {
+    const newTextColor = getContrastTextColor(selectedColor);
+    setTextColor(newTextColor);
+    
+    document.documentElement.style.setProperty('--main-bg-color', selectedColor);
+    document.documentElement.style.setProperty('--scrollbar-track', selectedColor);
+    document.documentElement.style.setProperty('--scrollbar-thumb', newTextColor === '#FFFFFF' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)');
+    document.documentElement.style.setProperty('--scrollbar-thumb-hover', newTextColor === '#FFFFFF' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)');
+    
+    localStorage.setItem('selectedColor', selectedColor);
+    localStorage.setItem('textColor', newTextColor);
+  }, [selectedColor]);
+
+  // Add this state in the Dashboard component
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  // Add this state for settings drawer
+  const [settingsDrawerOpen, setSettingsDrawerOpen] = useState(false);
+
+  // Update the menu items array
+  const menuItems = [
+    { 
+      icon: <Settings size={20} />, 
+      label: 'Settings',
+      onClick: () => setSettingsDrawerOpen(true)
+    },
+    { 
+      icon: <Bell size={20} />, 
+      label: 'Notifications' 
+    },
+    { 
+      icon: <HelpCircle size={20} />, 
+      label: 'Help' 
+    }
+  ];
+
+  // Add state for ActivityHistory settings
+  const [activitySettingsOpen, setActivitySettingsOpen] = useState(false);
+
+  // Update the state declarations
+  const [chartType, setChartType] = useState<ChartType>('bar');
+
+  // Update the handleChartTypeChange function
+  const handleChartTypeChange = (event: { target: { value: ChartType } }) => {
+    setChartType(event.target.value);
+  };
+
+  // Add this type
+  type ActivityType = 'car' | 'human' | 'bike' | 'truck' | 'bus'
+
+  // Add barColors state
+  const [barColors, setBarColors] = useState(() => {
+    const savedColors = localStorage.getItem('activityBarColors')
+    return savedColors ? JSON.parse(savedColors) : {
+      car: 'rgba(136, 132, 216, 1)',
+      human: 'rgba(130, 202, 157, 1)',
+      bike: 'rgba(141, 209, 225, 1)',
+      truck: 'rgba(255, 198, 88, 1)',
+      bus: 'rgba(255, 128, 66, 1)'
+    }
+  })
+
+  // Add colorPickerAnchor state
+  const [colorPickerAnchor, setColorPickerAnchor] = useState<{
+    element: HTMLElement | null;
+    type: ActivityType | null;
+  }>({ element: null, type: null })
+
+  // Add color sets constant
+  const COLOR_SETS = [
+    {
+      name: 'Ocean Breeze',
+      colors: {
+        car: '#4facfe',
+        human: '#00f2fe',
+        bike: '#0099ff',
+        truck: '#0062ff',
+        bus: '#0033ff'
+      }
+    },
+    {
+      name: 'Forest Harmony',
+      colors: {
+        car: '#84fab0',
+        human: '#68d391',
+        bike: '#4fd1c5',
+        truck: '#38b2ac',
+        bus: '#319795'
+      }
+    },
+    {
+      name: 'Sunset Glow',
+      colors: {
+        car: '#ff6b6b',
+        human: '#f06595',
+        bike: '#e64980',
+        truck: '#d6336c',
+        bus: '#c2255c'
+      }
+    },
+    {
+      name: 'Purple Rain',
+      colors: {
+        car: '#a18cd1',
+        human: '#9775fa',
+        bike: '#845ef7',
+        truck: '#7950f2',
+        bus: '#6741d9'
+      }
+    },
+    {
+      name: 'Golden Dawn',
+      colors: {
+        car: '#ffd700',
+        human: '#ffa500',
+        bike: '#ff8c00',
+        truck: '#ff7f50',
+        bus: '#ff6347'
+      }
+    }
+  ];
+
+  // Add state for DailyPatterns settings
+  const [dailyPatternsSettingsOpen, setDailyPatternsSettingsOpen] = useState(false);
+
+  // Add state for DailyPatterns colors
+  const [dailyPatternsColors, setDailyPatternsColors] = useState(() => {
+    const savedColors = localStorage.getItem('dailyPatternsColors')
+    return savedColors ? JSON.parse(savedColors) : {
+      car: 'rgba(136, 132, 216, 1)',
+      human: 'rgba(130, 202, 157, 1)',
+      bike: 'rgba(141, 209, 225, 1)'
+    }
+  });
+
   if (isLoading) {
     return (
       <Box
@@ -410,20 +604,22 @@ const Dashboard = () => {
       <Box 
         id="dashboard-content"
         sx={{ 
-          bgcolor: '#121212',
+          background: selectedColor,
           minHeight: '100vh',
           p: { xs: 1, sm: 1.5, md: 2 },
           m: 0,
           boxSizing: 'border-box',
           overflowX: 'hidden',
-        }}>
+          transition: 'background 0.3s ease-in-out'
+        }}
+      >
         {/* Header */}
         <Box sx={{ 
           display: 'flex', 
           justifyContent: 'space-between',
           alignItems: 'center',
           mb: { xs: 1, sm: 1.5, md: 2 },
-          color: 'rgba(255, 255, 255, 0.7)',
+          color: textColor,
           fontSize: { xs: FONT_SIZES.md, sm: FONT_SIZES.lg },
           flexWrap: 'wrap',
           gap: 1
@@ -435,117 +631,43 @@ const Dashboard = () => {
             gap: 2 
           }}>
             {/* Logo */}
-            <motion.div
-              ref={usernameDropdownRef}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowUsername(!showUsername)}
-              style={{ 
-                cursor: 'pointer',
-                background: 'rgba(255, 255, 255, 0.05)',
+            <Box
+              component="div"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              sx={{
+                width: 80,
+                height: 80,
                 borderRadius: '50%',
-                padding: '8px',
+                padding: 1,
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                backdropFilter: 'blur(5px)',
+                border: '2px solid rgba(255, 255, 255, 0.2)',
+                transition: 'all 0.3s ease',
+                cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                position: 'relative'
+                position: 'relative',
+                overflow: 'hidden',
+                '&:hover': {
+                  transform: 'scale(1.05)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                }
               }}
             >
-              <img 
-                src={logo} 
-                alt="Logo" 
-                style={{
-                  height: isMobile ? '40px' : '50px',
-                  width: isMobile ? '40px' : '50px',
+              <Box
+                component="img"
+                src={logo}
+                alt="Logo"
+                sx={{
+                  width: '100%',
+                  height: '100%',
                   objectFit: 'cover',
-                  borderRadius: '50%'
+                  transition: 'transform 0.3s ease',
+                  transform: isMenuOpen ? 'rotate(45deg)' : 'rotate(0deg)',
                 }}
               />
-              {showUsername && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    marginTop: '8px',
-                    backgroundColor: '#2A2A2A',
-                    padding: '8px 16px',
-                    borderRadius: '4px',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-                    whiteSpace: 'nowrap',
-                    zIndex: 1000,
-                    border: '2px solid #404040'
-                  }}
-                >
-                  <Box sx={{ 
-                    fontSize: FONT_SIZES.sm,
-                    color: '#ffffff',
-                    fontWeight: 600,
-                    textAlign: 'center'
-                  }}>
-                    {username}
-                  </Box>
-                  <Box sx={{ 
-                    fontSize: FONT_SIZES.xs,
-                    color: 'rgba(255, 255, 255, 0.7)',
-                    textAlign: 'center',
-                    mt: 0.5
-                  }}>
-                    {userRole}
-                  </Box>
-                </motion.div>
-              )}
-            </motion.div>
-
-            {/* Welcome Message - Only show when username dropdown is not visible */}
-            {!showUsername && (
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5 }}
-              >
-                <Box sx={{ 
-                  display: { xs: 'none', sm: 'block' },
-                  color: 'rgba(255, 255, 255, 0.9)'
-                }}>
-                  <Box sx={{ 
-                    fontSize: FONT_SIZES.sm,
-                    color: 'rgba(255, 255, 255, 0.6)'
-                  }}>
-                    {userRole && (
-                      <Box component="span" sx={{ 
-                        display: 'inline-block',
-                        bgcolor: 'rgba(255, 255, 255, 0.1)',
-                        px: 1,
-                        py: 0.5,
-                        borderRadius: 1,
-                        fontSize: FONT_SIZES.xs,
-                        mr: 1
-                      }}>
-                        {userRole.toUpperCase()}
-                      </Box>
-                    )}
-                    {new Date().toLocaleDateString('en-US', { 
-                      weekday: 'long', 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
-                    })}
-                  </Box>
-                  <Box sx={{ 
-                    fontSize: FONT_SIZES.lg,
-                    fontWeight: 500,
-                    mt: 0.5
-                  }}>
-                    {getWelcomeMessage()}
-                  </Box>
-                </Box>
-              </motion.div>
-            )}
+            </Box>
           </Box>
 
           {/* Right section with Demo Mode toggle and Logout */}
@@ -599,38 +721,129 @@ const Dashboard = () => {
               }}
             />
 
-            {/* Add Download Button */}
+            {/* Color Selector Button */}
+            <Button
+              onClick={(e) => setColorAnchorEl(e.currentTarget)}
+              startIcon={<PaletteIcon size={isMobile ? 16 : 18} />}
+              sx={{
+                color: textColor,
+                textTransform: 'none',
+                fontSize: { xs: FONT_SIZES.sm, sm: FONT_SIZES.md, md: FONT_SIZES.lg },
+                '&:hover': {
+                  bgcolor: textColor === '#ffffff' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                  color: textColor === '#ffffff' ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.9)',
+                }
+              }}
+            >
+              Theme
+            </Button>
+
+            {/* Download Report Button */}
             <Button
               onClick={handleDownloadReport}
               startIcon={<Download size={isMobile ? 16 : 18} />}
               sx={{
-                color: 'rgba(255, 255, 255, 0.7)',
+                color: textColor,
                 textTransform: 'none',
                 fontSize: { xs: FONT_SIZES.sm, sm: FONT_SIZES.md, md: FONT_SIZES.lg },
                 '&:hover': {
-                  bgcolor: 'rgba(255, 255, 255, 0.1)',
-                  color: 'rgba(255, 255, 255, 0.9)',
+                  bgcolor: textColor === '#ffffff' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                  color: textColor === '#ffffff' ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.9)',
                 }
               }}
             >
               Download Report
             </Button>
 
+            {/* Logout Button */}
             <Button
               onClick={handleLogout}
               startIcon={<LogOut size={isMobile ? 16 : 18} />}
               sx={{
-                color: 'rgba(255, 255, 255, 0.7)',
+                color: textColor,
                 textTransform: 'none',
                 fontSize: { xs: FONT_SIZES.sm, sm: FONT_SIZES.md, md: FONT_SIZES.lg },
                 '&:hover': {
-                  bgcolor: 'rgba(255, 255, 255, 0.1)',
-                  color: 'rgba(255, 255, 255, 0.9)',
+                  bgcolor: textColor === '#ffffff' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+                  color: textColor === '#ffffff' ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.9)',
                 }
               }}
             >
               Logout
             </Button>
+
+            {/* Color Menu */}
+            <Popover
+              open={Boolean(colorAnchorEl)}
+              anchorEl={colorAnchorEl}
+              onClose={() => setColorAnchorEl(null)}
+              anchorOrigin={{
+                vertical: 'bottom',
+                horizontal: 'center',
+              }}
+              transformOrigin={{
+                vertical: 'top',
+                horizontal: 'center',
+              }}
+              PaperProps={{
+                sx: {
+                  bgcolor: 'rgba(0, 0, 0, 0.9)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: 2,
+                  p: 2,
+                  maxWidth: '300px'
+                }
+              }}
+            >
+              <Box sx={{ 
+                display: 'grid',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: 1.5,
+                p: 1
+              }}>
+                {GRADIENT_PACKS.map((pack) => (
+                  <Box
+                    key={pack.name}
+                    onClick={() => {
+                      setSelectedColor(pack.background);  // Use gradient background
+                      localStorage.setItem('selectedColor', pack.background);
+                      setColorAnchorEl(null);
+                    }}
+                    sx={{
+                      width: '100px',
+                      height: '60px',
+                      borderRadius: '8px',
+                      background: pack.gradient,
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
+                      border: selectedColor === pack.background ? 
+                        '2px solid #82ca9d' : 
+                        '1px solid rgba(255, 255, 255, 0.2)',
+                      '&:hover': {
+                        transform: 'scale(1.05)',
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.4)'
+                      },
+                      position: 'relative',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    <Box sx={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      padding: '4px',
+                      background: 'rgba(0,0,0,0.5)',
+                      color: 'white',
+                      fontSize: '0.7rem',
+                      textAlign: 'center'
+                    }}>
+                      {pack.name}
+                    </Box>
+                  </Box>
+                ))}
+              </Box>
+            </Popover>
           </Box>
         </Box>
 
@@ -1007,20 +1220,24 @@ const Dashboard = () => {
               e.preventDefault();
               const widgetId = e.dataTransfer.getData('text/plain');
               if (widgetId) {
-                // Calculate drop position
-                const rect = e.currentTarget.getBoundingClientRect();
+                const rect = containerRef.current?.getBoundingClientRect();
+                if (!rect) return;
+
+                // Calculate drop position relative to container
                 const x = Math.floor((e.clientX - rect.left) / (containerWidth / 24));
                 const y = Math.floor((e.clientY - rect.top) / 30);
 
-                // Add widget to visible widgets
-                const newVisibleWidgets = [...visibleWidgets, widgetId];
-                setVisibleWidgets(newVisibleWidgets);
-                localStorage.setItem('visibleWidgets', JSON.stringify(newVisibleWidgets));
+                // Add widget to visible widgets if not already present
+                if (!visibleWidgets.includes(widgetId)) {
+                  const newVisibleWidgets = [...visibleWidgets, widgetId];
+                  setVisibleWidgets(newVisibleWidgets);
+                  localStorage.setItem('visibleWidgets', JSON.stringify(newVisibleWidgets));
+                }
 
                 // Create new layout item
                 const newLayoutItem = {
                   i: widgetId,
-                  x: Math.min(Math.max(0, x), 24 - 12),
+                  x: Math.min(Math.max(0, x), 24 - 12), // Ensure x is within bounds
                   y: Math.max(0, y),
                   w: 12,
                   h: 8,
@@ -1029,44 +1246,21 @@ const Dashboard = () => {
                 };
 
                 // Update layouts with new item
-                const newLayout = [...layouts.lg, newLayoutItem];
+                const newLayout = [...layouts.lg.filter(item => item.i !== widgetId), newLayoutItem];
                 setLayouts({ lg: newLayout });
                 localStorage.setItem('dashboardLayout', JSON.stringify(newLayout));
               }
-              setDragState({
-                isDragging: false,
-                draggedWidget: null
-              });
             }}
             sx={{ 
-              width: '100%', 
-              height: '100%',
-              minHeight: '100vh',
-              bgcolor: dragState.isDragging ? 'rgba(130, 202, 157, 0.05)' : '#121212',
+              width: '100%',
+              minHeight: 'calc(100vh - 200px)',
+              position: 'relative',
+              bgcolor: selectedColor,
               overflowX: 'hidden',
               px: 2,
-              transition: 'all 0.3s ease',
-              border: dragState.isDragging ? '2px dashed #82ca9d' : 'none',
-              '& .react-grid-item': {
-                transition: 'all 200ms ease',
-                visibility: 'visible !important',
-                opacity: 1,
-                '&.react-draggable-dragging': {
-                  transition: 'none',
-                  zIndex: 100,
-                  opacity: 0.9,
-                  cursor: 'grabbing',
-                  transform: 'scale(1.02)',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-                }
-              },
-              '& .react-grid-item.react-grid-placeholder': {
-                background: 'rgba(130, 202, 157, 0.2)',
-                border: '2px dashed #82ca9d',
-                opacity: 0.5,
-                borderRadius: '4px',
-                visibility: 'visible !important'
-              }
+              transition: 'background-color 0.3s ease',
+              border: dragState.isDragging ? '2px dashed rgba(130, 202, 157, 0.5)' : 'none',
+              borderRadius: 2
             }}
           >
             <GridLayout
@@ -1079,31 +1273,16 @@ const Dashboard = () => {
               containerPadding={[10, 10]}
               isDraggable={true}
               isResizable={true}
-              resizeHandles={['s', 'w', 'e', 'n', 'sw', 'nw', 'se', 'ne']}
               onLayoutChange={(newLayout) => {
-                setLayouts({ lg: newLayout })
-                localStorage.setItem('dashboardLayout', JSON.stringify(newLayout))
-              }}
-              onDragStart={(layout, oldItem, newItem, placeholder, e, element) => {
-                element.style.transition = 'none'
-              }}
-              onDragStop={(layout, oldItem, newItem, placeholder, e, element) => {
-                element.style.transition = 'all 200ms ease'
-              }}
-              onResizeStart={(layout, oldItem, newItem, placeholder, e, element) => {
-                element.style.transition = 'none'
-              }}
-              onResizeStop={(layout, oldItem, newItem, placeholder, e, element) => {
-                element.style.transition = 'all 200ms ease'
+                setLayouts({ lg: newLayout });
+                localStorage.setItem('dashboardLayout', JSON.stringify(newLayout));
               }}
               draggableHandle=".drag-handle"
-              style={{ 
-                minHeight: '100vh',
-                backgroundColor: '#121212',
-                paddingBottom: '50px',
-                width: '100%',
-                overflowX: 'hidden'
-              }}
+              resizeHandles={['se']}
+              compactType={null}
+              preventCollision={false}
+              useCSSTransforms={true}
+              transformScale={1}
             >
               {layouts.lg
                 .filter((item: LayoutItem) => visibleWidgets.includes(item.i))
@@ -1116,7 +1295,7 @@ const Dashboard = () => {
                       key={item.i} 
                       data-grid={item}
                       sx={{ 
-                        bgcolor: 'rgba(255, 255, 255, 0.05)',
+                        bgcolor: textColor === '#ffffff' ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.05)',
                         p: 2, 
                         borderRadius: 2, 
                         height: '100%',
@@ -1124,75 +1303,73 @@ const Dashboard = () => {
                         display: 'flex',
                         flexDirection: 'column',
                         overflow: 'hidden',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        cursor: 'auto',
-                        '& .react-resizable-handle': {
-                          opacity: 0,
-                          width: '20px',
-                          height: '20px',
-                          position: 'absolute',
-                          '&::after': {
-                            display: 'none'
-                          },
-                          '&:hover': {
-                            opacity: 0
-                          }
-                        },
-                        '&:hover .react-resizable-handle': {
-                          opacity: 0
-                        },
-                        '&:hover': {
-                          outline: '2px solid rgba(130, 202, 157, 0.5)',
-                          outlineOffset: '-2px'
-                        }
+                        border: textColor === '#ffffff' ? '1px solid rgba(0, 0, 0, 0.1)' : '1px solid rgba(255, 255, 255, 0.1)',
+                        boxShadow: textColor === '#ffffff' ? '0 4px 20px rgba(0, 0, 0, 0.05)' : '0 4px 20px rgba(0, 0, 0, 0.2)',
+                        position: 'relative'
                       }}
                     >
                       <Box 
-                        sx={{ 
-                          color: 'rgba(255, 255, 255, 0.7)', 
-                          mb: 0.5, 
-                          fontSize: '0.9rem',
-                          cursor: 'move'
-                        }} 
                         className="drag-handle"
-                      >
-                        {widget.title}
-                      </Box>
-                      <Box 
                         sx={{ 
-                          flex: 1, 
-                          minHeight: 0,
-                          position: 'relative',
-                          '& > *': { 
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
+                          position: 'absolute',
+                          top: 8,
+                          left: 8,
+                          right: 8,
+                          height: '24px',
+                          cursor: 'move',
+                          zIndex: 10,
+                          opacity: 0,
+                          transition: 'opacity 0.2s ease',
+                          '&:hover': {
+                            opacity: 1
                           }
-                        }}
-                      >
-                        {(() => {
-                          switch (item.i) {
-                            case 'activity':
-                              return <ActivityHistory isDemoMode={isDemoMode} />
-                            case 'patterns':
-                              return <DailyActivityPatterns isDemoMode={isDemoMode} />
-                            case 'vehicles':
-                              return <IdentifiedVehicles isDemoMode={isDemoMode} />
-                            case 'calendar':
-                              return <Calendar />
-                            case 'colors':
-                              return <PopularColors isDemoMode={isDemoMode} />
-                            case 'objects':
-                              return <DetectedObjects isDemoMode={isDemoMode} />
-                            case 'objectsByCamera':
-                              return <DetectedObjectsByCamera isDemoMode={isDemoMode} />
-                            default:
-                              return null
-                          }
-                        })()}
-                      </Box>
+                        }} 
+                      />
+                      
+                      {(() => {
+                        switch (item.i) {
+                          case 'activity':
+                            return <ActivityHistory 
+                              isDemoMode={isDemoMode} 
+                              textColor={textColor} 
+                              setActivitySettingsOpen={setActivitySettingsOpen}
+                              chartType={chartType}
+                              barColors={barColors}
+                              onChartTypeChange={(type) => setChartType(type)}
+                              onColorChange={(key, color) => {
+                                const newColors = { ...barColors, [key]: color };
+                                setBarColors(newColors);
+                                localStorage.setItem('activityBarColors', JSON.stringify(newColors));
+                              }}
+                            />
+                          case 'patterns':
+                            return <DailyActivityPatterns 
+                              isDemoMode={isDemoMode} 
+                              textColor={textColor}
+                              setDailyPatternsSettingsOpen={setDailyPatternsSettingsOpen}
+                              chartType={chartType as ChartType}  // Add type assertion
+                              areaColors={dailyPatternsColors}
+                              onChartTypeChange={(type: ChartType) => setChartType(type)}
+                              onColorChange={(key, color) => {
+                                const newColors = { ...dailyPatternsColors, [key]: color };
+                                setDailyPatternsColors(newColors);
+                                localStorage.setItem('dailyPatternsColors', JSON.stringify(newColors));
+                              }}
+                            />
+                          case 'vehicles':
+                            return <IdentifiedVehicles isDemoMode={isDemoMode} textColor={textColor} />
+                          case 'calendar':
+                            return <Calendar textColor={textColor} />
+                          case 'colors':
+                            return <PopularColors isDemoMode={isDemoMode} textColor={textColor} />
+                          case 'objects':
+                            return <DetectedObjects isDemoMode={isDemoMode} textColor={textColor} />
+                          case 'objectsByCamera':
+                            return <DetectedObjectsByCamera isDemoMode={isDemoMode} textColor={textColor} />
+                          default:
+                            return null
+                        }
+                      })()}
                     </Box>
                   )
                 })}
@@ -1200,65 +1377,115 @@ const Dashboard = () => {
           </Box>
         </motion.div>
 
-        <IconButton
-          onClick={() => setSidebarOpen(true)}
+        {/* Circular Menu Items */}
+        <AnimatePresence>
+          {isMenuOpen && menuItems.map((item, index) => {
+            // Calculate position for horizontal layout
+            const xOffset = (index + 1) * 60; // Space between icons
+            
+            return (
+              <motion.div
+                key={item.label}
+                initial={{ scale: 0, x: 0 }}
+                animate={{
+                  scale: 1,
+                  x: xOffset,  // Move right based on index
+                  transition: {
+                    type: "spring",
+                    stiffness: 400,
+                    damping: 20,
+                    delay: index * 0.05
+                  }
+                }}
+                exit={{
+                  scale: 0,
+                  x: 0,
+                  transition: {
+                    type: "spring",
+                    stiffness: 400,
+                    damping: 20,
+                    delay: (menuItems.length - index) * 0.05
+                  }
+                }}
+                style={{
+                  position: 'absolute',
+                  left: 90,  // Position after menu icon
+                  top: 40,   // Increased from 20 to 40 to move icons lower
+                  zIndex: 1199,
+                  transformOrigin: 'center center'
+                }}
+              >
+                <IconButton
+                  onClick={() => {
+                    if (item.onClick) {
+                      item.onClick();
+                    }
+                    setIsMenuOpen(false);
+                  }}
+                  sx={{
+                    color: textColor,
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                      transform: 'scale(1.1)',
+                    },
+                    transition: 'all 0.2s ease',
+                    width: 40,
+                    height: 40,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                  }}
+                >
+                  {item.icon}
+                </IconButton>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+
+        {/* Settings Drawer */}
+        <Box
           sx={{
             position: 'fixed',
-            right: 0,
+            right: settingsDrawerOpen ? 20 : -300,
             top: '50%',
             transform: 'translateY(-50%)',
-            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-            color: 'rgba(255, 255, 255, 0.7)',
-            '&:hover': {
-              backgroundColor: 'rgba(255, 255, 255, 0.1)',
-            },
-            zIndex: 1200
-          }}
-        >
-          <ChevronLeft />
-        </IconButton>
-
-        <Drawer
-          anchor="right"
-          open={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          variant="persistent"
-          sx={{
-            '& .MuiDrawer-paper': {
-              width: 280,
-              backgroundColor: '#1E1E1E',
-              borderLeft: '1px solid rgba(255, 255, 255, 0.1)',
-              padding: 2,
-              color: 'rgba(255, 255, 255, 0.87)'
-            }
+            width: 250,
+            bgcolor: 'rgba(0, 0, 0, 0.9)',
+            backdropFilter: 'blur(8px)',
+            p: 2,
+            borderRadius: 2,
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+            transition: 'right 0.3s ease-in-out',
+            zIndex: 1300,
           }}
         >
           <Box sx={{ 
-            display: 'flex', 
-            alignItems: 'center', 
+            display: 'flex',
             justifyContent: 'space-between',
-            mb: 2 
+            alignItems: 'center',
+            mb: 2,
+            color: textColor,
+            fontSize: '1rem',
+            fontWeight: 500
           }}>
-            <Box sx={{ 
-              fontSize: '1.1rem', 
-              fontWeight: 500 
-            }}>
-              Dashboard Widgets
-            </Box>
-            <IconButton 
-              onClick={() => setSidebarOpen(false)}
-              sx={{ 
-                color: 'rgba(255, 255, 255, 0.7)',
+            Settings
+            <IconButton
+              onClick={() => setSettingsDrawerOpen(false)}
+              sx={{
+                padding: '4px',
+                color: textColor,
                 '&:hover': {
-                  color: 'rgba(255, 255, 255, 0.9)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
                 }
               }}
             >
-              <ChevronRight />
+              <X size={16} />
             </IconButton>
           </Box>
 
-          <List sx={{ width: '100%' }}>
+          {/* Add draggable widget list */}
+          <List sx={{ p: 0 }}>
             {widgets.map((widget) => (
               <ListItem
                 key={widget.id}
@@ -1278,75 +1505,378 @@ const Dashboard = () => {
                   });
                   e.currentTarget.style.opacity = '1';
                 }}
-                onClick={() => {
-                  if (visibleWidgets.includes(widget.id)) {
-                    handleRemoveWidget(widget.id);
-                  } else {
-                    handleAddWidget(widget.id);
-                  }
-                }}
                 sx={{
                   mb: 1,
                   borderRadius: 1,
                   backgroundColor: visibleWidgets.includes(widget.id) 
-                    ? 'rgba(130, 202, 157, 0.1)' 
+                    ? 'rgba(130, 202, 157, 0.1)'
                     : 'rgba(255, 255, 255, 0.05)',
                   '&:hover': {
                     backgroundColor: visibleWidgets.includes(widget.id)
                       ? 'rgba(130, 202, 157, 0.2)'
                       : 'rgba(255, 255, 255, 0.08)',
+                    cursor: 'grab'
                   },
-                  transition: 'all 0.2s ease',
-                  cursor: 'grab',
+                  '&:active': {
+                    cursor: 'grabbing'
+                  },
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  '&:active': {
-                    cursor: 'grabbing'
-                  }
+                  p: 1
                 }}
               >
                 <ListItemText
                   primary={widget.title}
                   sx={{
                     '& .MuiListItemText-primary': {
-                      fontSize: '0.9rem',
+                      fontSize: '0.875rem',
                       color: visibleWidgets.includes(widget.id)
                         ? '#82ca9d'
-                        : 'rgba(255, 255, 255, 0.87)'
+                        : textColor
                     }
                   }}
                 />
-                <Box
-                  sx={{
-                    width: 16,
-                    height: 16,
-                    borderRadius: '50%',
-                    border: '2px solid',
-                    borderColor: visibleWidgets.includes(widget.id)
-                      ? '#82ca9d'
-                      : 'rgba(255, 255, 255, 0.3)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    ml: 1
+                <Switch
+                  checked={visibleWidgets.includes(widget.id)}
+                  onChange={() => {
+                    if (visibleWidgets.includes(widget.id)) {
+                      const newVisibleWidgets = visibleWidgets.filter(id => id !== widget.id);
+                      setVisibleWidgets(newVisibleWidgets);
+                      localStorage.setItem('visibleWidgets', JSON.stringify(newVisibleWidgets));
+                    } else {
+                      const newVisibleWidgets = [...visibleWidgets, widget.id];
+                      setVisibleWidgets(newVisibleWidgets);
+                      localStorage.setItem('visibleWidgets', JSON.stringify(newVisibleWidgets));
+                    }
                   }}
-                >
-                  {visibleWidgets.includes(widget.id) && (
-                    <Box
-                      sx={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        backgroundColor: '#82ca9d'
-                      }}
-                    />
-                  )}
-                </Box>
+                  size="small"
+                  sx={{
+                    '& .MuiSwitch-switchBase.Mui-checked': {
+                      color: '#82ca9d',
+                    },
+                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                      backgroundColor: '#82ca9d',
+                    },
+                    '& .MuiSwitch-track': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                    },
+                  }}
+                />
               </ListItem>
             ))}
           </List>
-        </Drawer>
+        </Box>
+
+        {/* Activity History Settings */}
+        <Box
+          sx={{
+            position: 'fixed',
+            right: activitySettingsOpen ? 20 : -300,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: 250,
+            bgcolor: 'rgba(0, 0, 0, 0.9)',
+            backdropFilter: 'blur(8px)',
+            p: 2,
+            borderRadius: 2,
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+            transition: 'right 0.3s ease-in-out',
+            zIndex: 1300,
+          }}
+        >
+          <Box sx={{ 
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            mb: 2,
+            color: textColor,
+            fontSize: '1rem',
+            fontWeight: 500
+          }}>
+            Activity History Settings
+            <IconButton
+              onClick={() => setActivitySettingsOpen(false)}
+              sx={{
+                padding: '4px',
+                color: textColor,
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                }
+              }}
+            >
+              <X size={16} />
+            </IconButton>
+          </Box>
+
+          {/* Chart Type Selection */}
+          <Box sx={{ mb: 3 }}>
+            <Box sx={{ mb: 1, color: textColor, fontSize: '0.875rem' }}>Chart Type</Box>
+            <Select
+              value={chartType}
+              onChange={handleChartTypeChange}
+              size="small"
+              fullWidth
+              MenuProps={{  // Add this
+                PaperProps: {
+                  sx: {
+                    bgcolor: 'rgba(0, 0, 0, 0.9)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+                  }
+                }
+              }}
+              sx={{
+                height: '36px',
+                fontSize: '0.875rem',
+                color: textColor,
+                backgroundColor: 'rgba(0, 0, 0, 0.9)',  // Darker background
+                '.MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'rgba(255, 255, 255, 0.1)',
+                },
+                '&:hover .MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'rgba(255, 255, 255, 0.3)',
+                },
+                '& .MuiSelect-icon': {  // Add this
+                  color: textColor
+                }
+              }}
+            >
+              {['bar', 'line', 'scatter', 'bubble'].map((type) => (
+                <MenuItem 
+                  key={type} 
+                  value={type}
+                  sx={{ 
+                    fontSize: '0.875rem',
+                    color: textColor,
+                    bgcolor: 'rgba(0, 0, 0, 0.9)',  // Darker background
+                    '&:hover': {
+                      bgcolor: 'rgba(255, 255, 255, 0.1)'
+                    },
+                    '&.Mui-selected': {
+                      bgcolor: 'rgba(255, 255, 255, 0.15)'
+                    },
+                    '&.Mui-selected:hover': {
+                      bgcolor: 'rgba(255, 255, 255, 0.2)'
+                    }
+                  }}
+                >
+                  {type.charAt(0).toUpperCase() + type.slice(1)} Chart
+                </MenuItem>
+              ))}
+            </Select>
+          </Box>
+
+          {/* Color Settings */}
+          <Box sx={{ mb: 2 }}>
+            <Box sx={{ mb: 1, color: textColor, fontSize: '0.875rem' }}>Color Themes</Box>
+            {COLOR_SETS.map((set) => (
+              <Box
+                key={set.name}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  mb: 1,
+                  p: 1,
+                  borderRadius: 1,
+                  cursor: 'pointer',
+                  backgroundColor: barColors === set.colors ? 
+                    'rgba(255, 255, 255, 0.1)' : 
+                    'transparent',
+                  '&:hover': {
+                    bgcolor: 'rgba(255, 255, 255, 0.05)',
+                  }
+                }}
+                onClick={() => {
+                  setBarColors(set.colors);
+                  localStorage.setItem('activityBarColors', JSON.stringify(set.colors));
+                }}
+              >
+                <Box sx={{ 
+                  display: 'flex', 
+                  gap: 0.5 
+                }}>
+                  {Object.values(set.colors).map((color, index) => (
+                    <Box
+                      key={index}
+                      sx={{
+                        width: 12,
+                        height: 12,
+                        borderRadius: '50%',
+                        bgcolor: color,
+                        border: '1px solid rgba(255, 255, 255, 0.2)'
+                      }}
+                    />
+                  ))}
+                </Box>
+                <Box sx={{ 
+                  color: textColor,
+                  fontSize: '0.875rem',
+                  flex: 1
+                }}>
+                  {set.name}
+                </Box>
+              </Box>
+            ))}
+          </Box>
+        </Box>
+
+        {/* DailyPatterns Settings */}
+        <Box
+          sx={{
+            position: 'fixed',
+            right: dailyPatternsSettingsOpen ? 20 : -300,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: 250,
+            bgcolor: 'rgba(0, 0, 0, 0.9)',
+            backdropFilter: 'blur(8px)',
+            p: 2,
+            borderRadius: 2,
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+            transition: 'right 0.3s ease-in-out',
+            zIndex: 1300,
+          }}
+        >
+          <Box sx={{ 
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            mb: 2,
+            color: textColor,
+            fontSize: '1rem',
+            fontWeight: 500
+          }}>
+            DailyPatterns Settings
+            <IconButton
+              onClick={() => setDailyPatternsSettingsOpen(false)}
+              sx={{
+                padding: '4px',
+                color: textColor,
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                }
+              }}
+            >
+              <X size={16} />
+            </IconButton>
+          </Box>
+
+          {/* Chart Type Selection */}
+          <Box sx={{ mb: 3 }}>
+            <Box sx={{ mb: 1, color: textColor, fontSize: '0.875rem' }}>Chart Type</Box>
+            <Select
+              value={chartType}
+              onChange={handleChartTypeChange}
+              size="small"
+              fullWidth
+              MenuProps={{  // Add this
+                PaperProps: {
+                  sx: {
+                    bgcolor: 'rgba(0, 0, 0, 0.9)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+                  }
+                }
+              }}
+              sx={{
+                height: '36px',
+                fontSize: '0.875rem',
+                color: textColor,
+                backgroundColor: 'rgba(0, 0, 0, 0.9)',  // Darker background
+                '.MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'rgba(255, 255, 255, 0.1)',
+                },
+                '&:hover .MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'rgba(255, 255, 255, 0.3)',
+                },
+                '& .MuiSelect-icon': {  // Add this
+                  color: textColor
+                }
+              }}
+            >
+              {['bar', 'line', 'scatter', 'bubble'].map((type) => (
+                <MenuItem 
+                  key={type} 
+                  value={type}
+                  sx={{ 
+                    fontSize: '0.875rem',
+                    color: textColor,
+                    bgcolor: 'rgba(0, 0, 0, 0.9)',  // Darker background
+                    '&:hover': {
+                      bgcolor: 'rgba(255, 255, 255, 0.1)'
+                    },
+                    '&.Mui-selected': {
+                      bgcolor: 'rgba(255, 255, 255, 0.15)'
+                    },
+                    '&.Mui-selected:hover': {
+                      bgcolor: 'rgba(255, 255, 255, 0.2)'
+                    }
+                  }}
+                >
+                  {type.charAt(0).toUpperCase() + type.slice(1)} Chart
+                </MenuItem>
+              ))}
+            </Select>
+          </Box>
+
+          {/* Color Settings */}
+          <Box sx={{ mb: 2 }}>
+            <Box sx={{ mb: 1, color: textColor, fontSize: '0.875rem' }}>Color Themes</Box>
+            {COLOR_SETS.map((set) => (
+              <Box
+                key={set.name}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  mb: 1,
+                  p: 1,
+                  borderRadius: 1,
+                  cursor: 'pointer',
+                  backgroundColor: dailyPatternsColors === set.colors ? 
+                    'rgba(255, 255, 255, 0.1)' : 
+                    'transparent',
+                  '&:hover': {
+                    bgcolor: 'rgba(255, 255, 255, 0.05)',
+                  }
+                }}
+                onClick={() => {
+                  setDailyPatternsColors(set.colors);
+                  localStorage.setItem('dailyPatternsColors', JSON.stringify(set.colors));
+                }}
+              >
+                <Box sx={{ 
+                  display: 'flex', 
+                  gap: 0.5 
+                }}>
+                  {Object.values(set.colors).map((color, index) => (
+                    <Box
+                      key={index}
+                      sx={{
+                        width: 12,
+                        height: 12,
+                        borderRadius: '50%',
+                        bgcolor: color,
+                        border: '1px solid rgba(255, 255, 255, 0.2)'
+                      }}
+                    />
+                  ))}
+                </Box>
+                <Box sx={{ 
+                  color: textColor,
+                  fontSize: '0.875rem',
+                  flex: 1
+                }}>
+                  {set.name}
+                </Box>
+              </Box>
+            ))}
+          </Box>
+        </Box>
       </Box>
     </motion.div>
   )
