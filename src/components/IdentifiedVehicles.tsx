@@ -1,28 +1,25 @@
-import { Box, Select, MenuItem, SelectChangeEvent, Popover } from '@mui/material'
+import { Box } from '@mui/material'
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
   Title,
   Tooltip as ChartTooltip,
   Legend,
-  Filler,
-  ChartData,
-  ChartOptions
+  Filler
 } from 'chart.js'
 import { Line, Bar } from 'react-chartjs-2'
 import { useState, useEffect } from 'react'
-import { HexColorPicker } from 'react-colorful'
-import { Settings } from 'lucide-react'
-import { IconButton, Drawer, FormControlLabel, Switch } from '@mui/material'
 
 ChartJS.register(
   CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
   Title,
   ChartTooltip,
   Legend,
@@ -32,6 +29,10 @@ ChartJS.register(
 interface IdentifiedVehiclesProps {
   isDemoMode: boolean;
   textColor: string;
+  chartType: ChartType;
+  colors: Record<string, string>;
+  onChartTypeChange: (type: ChartType) => void;
+  onColorChange: (key: string, color: string) => void;
 }
 
 const generateData = (currentTime: Date, minutes: number = 10, isDemoMode: boolean) => {
@@ -46,8 +47,7 @@ const generateData = (currentTime: Date, minutes: number = 10, isDemoMode: boole
         : '',
       displayTime: time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
       in: isDemoMode ? Math.floor(Math.random() * 10) + 5 : 0,
-      out: isDemoMode ? Math.floor(Math.random() * 10) + 5 : 0,
-      unknown: isDemoMode ? Math.floor(Math.random() * 5) + 1 : 0
+      out: isDemoMode ? Math.floor(Math.random() * 10) + 5 : 0
     })
   }
   return data
@@ -58,72 +58,34 @@ interface ChartItem {
   displayTime: string;
   in: number;
   out: number;
-  unknown: number;
 }
 
-type ChartType = 'bar' | 'line'
+type ChartType = 'bar' | 'line';
 
-type VehicleType = 'in' | 'out' | 'unknown';
+type VehicleType = 'in' | 'out';
 
-const IdentifiedVehicles = ({ isDemoMode, textColor }: IdentifiedVehiclesProps) => {
+const IdentifiedVehicles = ({ isDemoMode, textColor, chartType, colors, onChartTypeChange, onColorChange }: IdentifiedVehiclesProps) => {
   const [selectedType, setSelectedType] = useState<VehicleType | null>(null)
   const [currentTime, setCurrentTime] = useState(new Date())
   const [data, setData] = useState(() => generateData(new Date(), 10, isDemoMode))
   const [isUpdating, setIsUpdating] = useState(false)
-  const [timeRange, setTimeRange] = useState('10')
-  const [chartType, setChartType] = useState<ChartType>('line')
-
-  // Add color picker states
-  const [vehicleColors, setVehicleColors] = useState(() => {
-    const savedColors = localStorage.getItem('identifiedVehiclesColors')
-    return savedColors ? JSON.parse(savedColors) : {
-      in: 'rgba(130, 202, 157, 1)',
-      out: 'rgba(244, 67, 54, 1)',
-      unknown: 'rgba(102, 102, 102, 1)'
-    }
-  });
-
-  const [colorPickerAnchor, setColorPickerAnchor] = useState<{
-    element: HTMLElement | null;
-    type: VehicleType | null;
-  }>({ element: null, type: null });
-
-  // Add color change handler
-  const handleColorChange = (color: string) => {
-    if (colorPickerAnchor.type) {
-      const newColors = {
-        ...vehicleColors,
-        [colorPickerAnchor.type]: color
-      };
-      setVehicleColors(newColors);
-      localStorage.setItem('identifiedVehiclesColors', JSON.stringify(newColors));
-    }
-  };
 
   useEffect(() => {
     const updateData = async () => {
       setIsUpdating(true)
       await new Promise(resolve => setTimeout(resolve, 200))
       setCurrentTime(new Date())
-      setData(generateData(new Date(), parseInt(timeRange), isDemoMode))
+      setData(generateData(new Date(), 10, isDemoMode))
       setIsUpdating(false)
     }
 
     const intervalId = setInterval(updateData, 60000)
     return () => clearInterval(intervalId)
-  }, [timeRange, isDemoMode])
+  }, [])
 
   useEffect(() => {
-    setData(generateData(currentTime, parseInt(timeRange), isDemoMode))
-  }, [selectedType, currentTime, timeRange, isDemoMode])
-
-  const handleTimeRangeChange = (event: SelectChangeEvent<string>) => {
-    setTimeRange(event.target.value)
-  }
-
-  const handleChartTypeChange = (event: SelectChangeEvent<ChartType>) => {
-    setChartType(event.target.value as ChartType)
-  }
+    setData(generateData(currentTime, 10, isDemoMode))
+  }, [selectedType, currentTime])
 
   const createGradient = (ctx: CanvasRenderingContext2D, color: string) => {
     const gradient = ctx.createLinearGradient(0, 0, 0, 400)
@@ -132,71 +94,54 @@ const IdentifiedVehicles = ({ isDemoMode, textColor }: IdentifiedVehiclesProps) 
     return gradient
   }
 
-  const chartData: ChartData<'line'> = {
+  const chartData = {
     labels: data.map((d: ChartItem) => d.time),
-    datasets: Object.entries(vehicleColors).map(([key, color]) => ({
+    datasets: Object.entries(colors).map(([key, color]) => ({
       label: key.charAt(0).toUpperCase() + key.slice(1),
       data: data.map((d: ChartItem) => d[key as VehicleType]),
       borderColor: selectedType ? 
         (selectedType === key ? color : 'rgba(200, 200, 200, 0.7)') : 
         color,
-      backgroundColor: (context) => {
-        const ctx = context.chart.ctx
-        return selectedType ? 
-          (selectedType === key ? createGradient(ctx, color) : 'rgba(200, 200, 200, 0.3)') : 
-          createGradient(ctx, color)
-      },
-      fill: true,
+      backgroundColor: chartType === 'bar' ? color : createGradient(document.createElement('canvas').getContext('2d')!, color),
+      fill: chartType === 'line',
       tension: 0.4,
-      pointRadius: 0,
-      pointHoverRadius: 4,
       borderWidth: selectedType === key ? 2 : 1,
-      borderDash: selectedType && selectedType !== key ? [] : undefined,
-      hidden: false,
-      order: selectedType === key ? 1 : 2,
-      zIndex: selectedType === key ? 2 : 1
+      borderDash: selectedType && selectedType !== key ? [5, 5] : undefined
     }))
-  }
+  };
 
-  const options: ChartOptions<'line'> = {
+  const options = {
     responsive: true,
     maintainAspectRatio: false,
     animation: {
-      duration: 2000,
-      easing: 'easeInOutQuart',
-      delay(context) {
-        return context.dataIndex * 50;
-      },
+      duration: 1000
     },
     scales: {
       x: {
         grid: {
           display: false,
-          border: { display: false }
+          color: 'rgba(255, 255, 255, 0.1)'
         },
         ticks: {
-          color: 'rgba(255, 255, 255, 0.3)',
+          color: 'rgba(255, 255, 255, 0.5)',
           font: {
-            size: 9
-          },
-          maxRotation: 0,
-          autoSkip: false
+            size: 10
+          }
         }
       },
       y: {
         grid: {
-          color: 'rgba(255, 255, 255, 0.15)',
-          border: { display: false }
+          color: 'rgba(255, 255, 255, 0.1)'
         },
-        min: 0,
-        max: 30,
         ticks: {
-          color: 'rgba(255, 255, 255, 0.3)',
+          color: 'rgba(255, 255, 255, 0.5)',
           font: {
-            size: 9
+            size: 10
           },
           stepSize: 5
-        }
+        },
+        min: 0,
+        max: 20
       }
     },
     plugins: {
@@ -205,39 +150,20 @@ const IdentifiedVehicles = ({ isDemoMode, textColor }: IdentifiedVehiclesProps) 
       },
       tooltip: {
         backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        padding: 12,
         titleColor: '#fff',
-        titleFont: {
-          size: 12
-        },
         bodyColor: '#fff',
-        bodyFont: {
-          size: 11
-        },
         borderColor: 'rgba(255, 255, 255, 0.1)',
         borderWidth: 1,
-        cornerRadius: 4,
+        padding: 10,
         displayColors: true,
-        boxWidth: 8,
-        boxHeight: 8,
-        boxPadding: 4,
-        usePointStyle: true,
         callbacks: {
-          title: (context) => {
-            return data[context[0].dataIndex].displayTime;
+          title: (tooltipItems: any) => {
+            return data[tooltipItems[0].dataIndex].displayTime;
           }
-        },
-        filter: (tooltipItem) => {
-          if (!selectedType) return true;
-          return tooltipItem.datasetIndex === datasets.findIndex(d => d.label?.toLowerCase() === selectedType);
         }
       }
-    },
-    interaction: {
-      intersect: false,
-      mode: 'index'
     }
-  }
+  } as const;
 
   return (
     <Box sx={{ 
@@ -264,208 +190,7 @@ const IdentifiedVehicles = ({ isDemoMode, textColor }: IdentifiedVehiclesProps) 
           width: '100%'
         }}>
           Identified Vehicles
-          <IconButton
-            onClick={() => setFilterDrawerOpen(true)}
-            sx={{
-              padding: '4px',
-              color: textColor,
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
-              '&:hover': {
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-              },
-              marginLeft: 'auto',
-              width: 24,
-              height: 24,
-            }}
-          >
-            <Settings size={14} />
-          </IconButton>
         </Box>
-      </Box>
-
-      <Box sx={{ 
-        display: 'flex', 
-        justifyContent: 'flex-end',
-        gap: 1,
-        mb: 1
-      }}>
-        <Select
-          value={chartType}
-          onChange={handleChartTypeChange}
-          size="small"
-          sx={{
-            height: '28px',
-            fontSize: '0.75rem',
-            fontWeight: 600,
-            color: textColor,
-            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-            '& .MuiSelect-select': {
-              padding: '4px 14px',
-              fontWeight: 600,
-            },
-            '.MuiOutlinedInput-notchedOutline': {
-              borderColor: textColor === '#ffffff' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
-            },
-            '&:hover': {
-              backgroundColor: '#333333',
-              '.MuiOutlinedInput-notchedOutline': {
-                borderColor: '#505050',
-                borderWidth: 2,
-              },
-            },
-            '&.Mui-focused': {
-              backgroundColor: '#333333',
-              '.MuiOutlinedInput-notchedOutline': {
-                borderColor: '#606060',
-                borderWidth: 2,
-              },
-            },
-            '.MuiSvgIcon-root': {
-              color: '#ffffff',
-            }
-          }}
-        >
-          <MenuItem 
-            value="bar" 
-            sx={{ 
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              color: textColor,
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
-              '&.Mui-selected': {
-                backgroundColor: '#404040',
-              },
-              '&:hover': {
-                backgroundColor: '#333333',
-              }
-            }}
-          >
-            Bar Chart
-          </MenuItem>
-          <MenuItem 
-            value="line" 
-            sx={{ 
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              color: textColor,
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
-              '&.Mui-selected': {
-                backgroundColor: '#404040',
-              },
-              '&:hover': {
-                backgroundColor: '#333333',
-              }
-            }}
-          >
-            Line Chart
-          </MenuItem>
-        </Select>
-
-        <Select
-          value={timeRange}
-          onChange={handleTimeRangeChange}
-          size="small"
-          sx={{
-            height: '28px',
-            fontSize: '0.75rem',
-            fontWeight: 600,
-            color: textColor,
-            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-            '& .MuiSelect-select': {
-              padding: '4px 14px',
-              fontWeight: 600,
-            },
-            '.MuiOutlinedInput-notchedOutline': {
-              borderColor: textColor === '#ffffff' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
-            },
-            '&:hover': {
-              backgroundColor: '#333333',
-              '.MuiOutlinedInput-notchedOutline': {
-                borderColor: '#505050',
-                borderWidth: 2,
-              },
-            },
-            '&.Mui-focused': {
-              backgroundColor: '#333333',
-              '.MuiOutlinedInput-notchedOutline': {
-                borderColor: '#606060',
-                borderWidth: 2,
-              },
-            },
-            '.MuiSvgIcon-root': {
-              color: '#ffffff',
-            }
-          }}
-        >
-          <MenuItem 
-            value="5" 
-            sx={{ 
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              color: textColor,
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
-              '&.Mui-selected': {
-                backgroundColor: '#404040',
-              },
-              '&:hover': {
-                backgroundColor: '#333333',
-              }
-            }}
-          >
-            Last 5 minutes
-          </MenuItem>
-          <MenuItem 
-            value="10" 
-            sx={{ 
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              color: textColor,
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
-              '&.Mui-selected': {
-                backgroundColor: '#404040',
-              },
-              '&:hover': {
-                backgroundColor: '#333333',
-              }
-            }}
-          >
-            Last 10 minutes
-          </MenuItem>
-          <MenuItem 
-            value="15" 
-            sx={{ 
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              color: textColor,
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
-              '&.Mui-selected': {
-                backgroundColor: '#404040',
-              },
-              '&:hover': {
-                backgroundColor: '#333333',
-              }
-            }}
-          >
-            Last 15 minutes
-          </MenuItem>
-          <MenuItem 
-            value="30" 
-            sx={{ 
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              color: textColor,
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
-              '&.Mui-selected': {
-                backgroundColor: '#404040',
-              },
-              '&:hover': {
-                backgroundColor: '#333333',
-              }
-            }}
-          >
-            Last 30 minutes
-          </MenuItem>
-        </Select>
       </Box>
 
       {isUpdating && (
@@ -496,8 +221,9 @@ const IdentifiedVehicles = ({ isDemoMode, textColor }: IdentifiedVehiclesProps) 
         </Box>
       )}
       <Box sx={{ 
-        height: 'calc(150px - 36px)',
-        mb: 1 
+        height: 'calc(100% - 80px)',
+        minHeight: '200px',
+        position: 'relative'
       }}>
         {(() => {
           switch (chartType) {
@@ -521,7 +247,7 @@ const IdentifiedVehicles = ({ isDemoMode, textColor }: IdentifiedVehiclesProps) 
           flexShrink: 0
         }}
       >
-        {Object.entries(vehicleColors).map(([key, color]) => (
+        {Object.entries(colors).map(([key, color]) => (
           <Box 
             key={key}
             onClick={() => {
@@ -529,16 +255,6 @@ const IdentifiedVehicles = ({ isDemoMode, textColor }: IdentifiedVehiclesProps) 
                 setSelectedType(null);
               } else {
                 setSelectedType(key as VehicleType);
-              }
-            }}
-            onDoubleClick={(e) => {
-              if (e.currentTarget === colorPickerAnchor.element) {
-                setColorPickerAnchor({ element: null, type: null });
-              } else {
-                setColorPickerAnchor({ 
-                  element: e.currentTarget as HTMLElement, 
-                  type: key as VehicleType 
-                });
               }
             }}
             sx={{ 
@@ -579,36 +295,6 @@ const IdentifiedVehicles = ({ isDemoMode, textColor }: IdentifiedVehiclesProps) 
           </Box>
         ))}
       </Box>
-
-      <Popover
-        open={Boolean(colorPickerAnchor.element)}
-        anchorEl={colorPickerAnchor.element}
-        onClose={() => setColorPickerAnchor({ element: null, type: null })}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'center',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'center',
-        }}
-        sx={{
-          '& .MuiPopover-paper': {
-            bgcolor: 'rgba(0, 0, 0, 0.85)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: 2,
-            p: 1
-          }
-        }}
-      >
-        <Box sx={{ p: 1 }}>
-          <HexColorPicker 
-            color={colorPickerAnchor.type ? vehicleColors[colorPickerAnchor.type] : '#000000'}
-            onChange={handleColorChange}
-            style={{ width: '200px' }}
-          />
-        </Box>
-      </Popover>
     </Box>
   )
 }

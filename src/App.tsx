@@ -1,5 +1,5 @@
-import { Box, Grid, Button, useTheme, useMediaQuery, Switch, FormControlLabel, List, ListItem, ListItemText, IconButton, Popover, Select, MenuItem } from '@mui/material'
-import { LogOut, Download, Palette as PaletteIcon, Menu as MenuIcon, Settings, Bell, HelpCircle, X } from 'lucide-react'
+import { Box, Grid, Button, useTheme, useMediaQuery, Switch, FormControlLabel, List, ListItem, ListItemText, IconButton, Popover, Select, MenuItem, Typography } from '@mui/material'
+import { LogOut, Download, Palette as PaletteIcon, Menu as MenuIcon, Settings, Lock, HelpCircle, X, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import Login from './pages/auth/Login'
@@ -16,6 +16,10 @@ import logo from './assets/logo.webp'
 import GridLayout from 'react-grid-layout'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
+import LocalConfig from './pages/LocalConfig'
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import { SelectChangeEvent } from '@mui/material/Select';
 
 // Animation variants for staggered children
 const containerVariants = {
@@ -79,10 +83,18 @@ interface AutoTableOutput {
   finalY: number;
 }
 
-// Add this interface for jsPDF
+// Update jsPDF type definition
 declare module 'jspdf' {
   interface jsPDF {
-    autoTable: (options: any) => any;
+    autoTable: (options: {
+      startY?: number;
+      head?: string[][];
+      body?: string[][];
+      theme?: string;
+      headStyles?: Record<string, any>;
+      styles?: Record<string, any>;
+      margin?: Record<string, number>;
+    }) => { finalY: number };
   }
 }
 
@@ -144,8 +156,223 @@ const GRADIENT_PACKS = [
 ];
 
 // Add these type definitions at the top
-type ChartType = 'bar' | 'line' | 'scatter' | 'bubble';
+type ChartType = 'bar' | 'line' | 'scatter' | 'bubble' | 'area';
 type ActivityType = 'car' | 'human' | 'bike' | 'truck' | 'bus';
+
+// Add preset color schemes for different components
+const PRESET_SCHEMES = {
+  activityHistory: [
+    {
+      name: 'Ocean',
+      colors: {
+        car: '#4facfe',
+        human: '#00f2fe',
+        bike: '#0099ff',
+        truck: '#0062ff',
+        bus: '#0033ff'
+      }
+    },
+    {
+      name: 'Forest',
+      colors: {
+        car: '#84fab0',
+        human: '#68d391',
+        bike: '#4fd1c5',
+        truck: '#38b2ac',
+        bus: '#319795'
+      }
+    },
+    {
+      name: 'Sunset',
+      colors: {
+        car: '#ff6b6b',
+        human: '#f06595',
+        bike: '#e64980',
+        truck: '#d6336c',
+        bus: '#c2255c'
+      }
+    }
+  ],
+  dailyPatterns: [
+    {
+      name: 'Classic',
+      colors: {
+        morning: '#ffd700',
+        afternoon: '#ff7f50',
+        evening: '#4b0082'
+      }
+    },
+    {
+      name: 'Modern',
+      colors: {
+        morning: '#00bfff',
+        afternoon: '#32cd32',
+        evening: '#9370db'
+      }
+    },
+    {
+      name: 'Pastel',
+      colors: {
+        morning: '#ffb6c1',
+        afternoon: '#98fb98',
+        evening: '#dda0dd'
+      }
+    }
+  ],
+  detectedObjects: [
+    {
+      name: 'Vibrant',
+      colors: {
+        person: '#ff4757',
+        vehicle: '#2ed573',
+        animal: '#ffa502',
+        object: '#1e90ff'
+      }
+    },
+    {
+      name: 'Cool',
+      colors: {
+        person: '#70a1ff',
+        vehicle: '#7bed9f',
+        animal: '#a4b0be',
+        object: '#5352ed'
+      }
+    },
+    {
+      name: 'Warm',
+      colors: {
+        person: '#ff6b81',
+        vehicle: '#ffa502',
+        animal: '#ff7f50',
+        object: '#ff6348'
+      }
+    }
+  ],
+  identifiedVehicles: [
+    {
+      name: 'Classic',
+      colors: {
+        in: '#4facfe',
+        out: '#ff6b6b'
+      }
+    },
+    {
+      name: 'Vintage',
+      colors: {
+        in: '#84fab0',
+        out: '#f06595'
+      }
+    },
+    {
+      name: 'Modern',
+      colors: {
+        in: '#00f2fe',
+        out: '#e64980'
+      }
+    }
+  ]
+};
+
+// First, add this type for the dropdown options
+type ActivityHistoryView = 'default' | 'compact' | 'detailed' | 'hidden';
+
+// Add this component for graph preview
+const GraphPreview: React.FC<{ type: ChartType; colors: Record<string, string>; textColor: string }> = ({ 
+  type, 
+  colors, 
+  textColor 
+}) => {
+  return (
+    <Box
+      sx={{
+        width: '100%',
+        height: '120px',
+        border: `1px solid ${textColor}`,
+        borderRadius: 1,
+        p: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.2)',
+        position: 'relative',
+        overflow: 'hidden'
+      }}
+    >
+      {type === 'bar' && (
+        <Box sx={{ display: 'flex', alignItems: 'flex-end', height: '100%', gap: 1, pt: 2, pb: 1 }}>
+          {Object.entries(colors).map(([key, color], i) => (
+            <Box
+              key={key}
+              sx={{
+                width: '14px',
+                height: `${30 + Math.random() * 50}%`,
+                backgroundColor: color,
+                borderRadius: '2px 2px 0 0',
+                transition: 'all 0.3s ease'
+              }}
+            />
+          ))}
+        </Box>
+      )}
+      {type === 'line' && (
+        <Box sx={{ width: '100%', height: '100%', position: 'relative' }}>
+          <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <path
+              d={`M 0,${50 + Math.random() * 20} ${Object.values(colors).map((_, i) => 
+                `L ${(i + 1) * (100 / Object.keys(colors).length)},${50 + Math.random() * 20}`
+              ).join(' ')}`}
+              stroke={Object.values(colors)[0]}
+              strokeWidth="2"
+              fill="none"
+            />
+          </svg>
+        </Box>
+      )}
+      {type === 'scatter' && (
+        <Box sx={{ width: '100%', height: '100%', position: 'relative' }}>
+          {Object.entries(colors).map(([key, color]) => (
+            Array(5).fill(0).map((_, i) => (
+              <Box
+                key={`${key}-${i}`}
+                sx={{
+                  position: 'absolute',
+                  width: '6px',
+                  height: '6px',
+                  backgroundColor: color,
+                  borderRadius: '50%',
+                  left: `${Math.random() * 90}%`,
+                  top: `${Math.random() * 90}%`,
+                  transition: 'all 0.3s ease'
+                }}
+              />
+            ))
+          ))}
+        </Box>
+      )}
+      {type === 'bubble' && (
+        <Box sx={{ width: '100%', height: '100%', position: 'relative' }}>
+          {Object.entries(colors).map(([key, color]) => (
+            Array(3).fill(0).map((_, i) => (
+              <Box
+                key={`${key}-${i}`}
+                sx={{
+                  position: 'absolute',
+                  width: `${10 + Math.random() * 20}px`,
+                  height: `${10 + Math.random() * 20}px`,
+                  backgroundColor: `${color}80`,
+                  borderRadius: '50%',
+                  left: `${Math.random() * 80}%`,
+                  top: `${Math.random() * 80}%`,
+                  transition: 'all 0.3s ease'
+                }}
+              />
+            ))
+          ))}
+        </Box>
+      )}
+    </Box>
+  );
+};
 
 const Dashboard = () => {
   const navigate = useNavigate()
@@ -203,19 +430,9 @@ const Dashboard = () => {
     return savedTextColor || '#ffffff' // Default white text
   })
 
-  const themeColors = [
-    { name: 'Dark', value: '#121212' },
-    { name: 'Navy', value: '#0A1929' },
-    { name: 'Forest', value: '#1A2F1A' },
-    { name: 'Deep Purple', value: '#1A1A2F' },
-    { name: 'Charcoal', value: '#1F1F1F' }
-  ]
-
-  const handleColorChange = (color: string) => {
-    setSelectedColor(color)
-    setColorAnchorEl(null)
-    // You can add logic here to update the theme globally
-  }
+  // Add these near other state declarations
+  const usernameDropdownRef = useRef<HTMLDivElement>(null);
+  const [showUsername, setShowUsername] = useState(false);
 
   useEffect(() => {
     // Get user info from localStorage
@@ -250,26 +467,6 @@ const Dashboard = () => {
     navigate('/login')
   }
 
-  const getWelcomeMessage = () => {
-    const time = new Date().getHours()
-    let greeting = ''
-    
-    if (time < 12) greeting = 'Good morning'
-    else if (time < 17) greeting = 'Good afternoon'
-    else greeting = 'Good evening'
-
-    switch (userRole?.toLowerCase()) {
-      case 'admin':
-        return `${greeting}, Administrator`
-      case 'security':
-        return `${greeting}, Officer`
-      case 'manager':
-        return `${greeting}, Manager`
-      default:
-        return `${greeting}, ${username}`
-    }
-  }
-
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (usernameDropdownRef.current && !usernameDropdownRef.current.contains(event.target as Node)) {
@@ -292,22 +489,6 @@ const Dashboard = () => {
     window.addEventListener('resize', updateWidth)
     return () => window.removeEventListener('resize', updateWidth)
   }, [])
-
-  // Add this function to handle adding widgets to dashboard
-  const handleAddWidget = (widgetId: string) => {
-    if (!visibleWidgets.includes(widgetId)) {
-      const newVisibleWidgets = [...visibleWidgets, widgetId]
-      setVisibleWidgets(newVisibleWidgets)
-      localStorage.setItem('visibleWidgets', JSON.stringify(newVisibleWidgets))
-    }
-  }
-
-  // Add this function to handle removing widgets from dashboard
-  const handleRemoveWidget = (widgetId: string) => {
-    const newVisibleWidgets = visibleWidgets.filter(id => id !== widgetId)
-    setVisibleWidgets(newVisibleWidgets)
-    localStorage.setItem('visibleWidgets', JSON.stringify(newVisibleWidgets))
-  }
 
   const handleDownloadReport = () => {
     try {
@@ -458,7 +639,13 @@ const Dashboard = () => {
   // Add this state for settings drawer
   const [settingsDrawerOpen, setSettingsDrawerOpen] = useState(false);
 
-  // Update the menu items array
+  // Add state for layout locking
+  const [isLayoutLocked, setIsLayoutLocked] = useState(() => {
+    const savedLockState = localStorage.getItem('isLayoutLocked');
+    return savedLockState ? JSON.parse(savedLockState) : false;
+  });
+
+  // Update the menu items array to include lock functionality
   const menuItems = [
     { 
       icon: <Settings size={20} />, 
@@ -466,12 +653,31 @@ const Dashboard = () => {
       onClick: () => setSettingsDrawerOpen(true)
     },
     { 
-      icon: <Bell size={20} />, 
-      label: 'Notifications' 
+      icon: <PaletteIcon size={20} />, 
+      label: 'Theme',
+      onClick: (e: React.MouseEvent<HTMLElement>) => setColorAnchorEl(e.currentTarget)
+    },
+    { 
+      icon: <Download size={20} />, 
+      label: 'Download Report',
+      onClick: handleDownloadReport
+    },
+    { 
+      icon: <Lock size={20} />,
+      label: isLayoutLocked ? 'Unlock Layout' : 'Lock Layout',
+      onClick: () => {
+        setIsLayoutLocked(!isLayoutLocked);
+        localStorage.setItem('isLayoutLocked', JSON.stringify(!isLayoutLocked));
+      }
     },
     { 
       icon: <HelpCircle size={20} />, 
       label: 'Help' 
+    },
+    { 
+      icon: <LogOut size={20} />, 
+      label: 'Logout',
+      onClick: handleLogout
     }
   ];
 
@@ -482,8 +688,18 @@ const Dashboard = () => {
   const [chartType, setChartType] = useState<ChartType>('bar');
 
   // Update the handleChartTypeChange function
-  const handleChartTypeChange = (event: { target: { value: ChartType } }) => {
-    setChartType(event.target.value);
+  const handleChartTypeChange = (componentId: string) => (event: SelectChangeEvent<ChartType>) => {
+    const newType = event.target.value as ChartType;
+    if (componentId === 'vehicles') {
+      setVehiclesChartType(newType);
+      localStorage.setItem('vehiclesChartType', newType);
+    } else if (componentId === 'patterns') {
+      setPatternsChartType(newType);
+      localStorage.setItem('patternsChartType', newType);
+    } else if (componentId === 'activity') {
+      setActivityChartType(newType);
+      localStorage.setItem('activityChartType', newType);
+    }
   };
 
   // Add this type
@@ -568,11 +784,42 @@ const Dashboard = () => {
   const [dailyPatternsColors, setDailyPatternsColors] = useState(() => {
     const savedColors = localStorage.getItem('dailyPatternsColors')
     return savedColors ? JSON.parse(savedColors) : {
-      car: 'rgba(136, 132, 216, 1)',
-      human: 'rgba(130, 202, 157, 1)',
-      bike: 'rgba(141, 209, 225, 1)'
+      morning: '#ffd700',
+      afternoon: '#ff7f50',
+      evening: '#4b0082'
     }
   });
+
+  // Add this state in the Dashboard component
+  const [activityHistoryView, setActivityHistoryView] = useState<ActivityHistoryView>('default');
+
+  // Add separate states for each component's chart type and colors
+  const [activityChartType, setActivityChartType] = useState<ChartType>('bar');
+  const [patternsChartType, setPatternsChartType] = useState<ChartType>('bar');
+
+  // Add these states in Dashboard component
+  const [vehiclesChartType, setVehiclesChartType] = useState<ChartType>(() => {
+    const savedType = localStorage.getItem('vehiclesChartType');
+    return (savedType as ChartType) || 'bar';
+  });
+  const [vehiclesColors, setVehiclesColors] = useState(() => {
+    const savedColors = localStorage.getItem('vehiclesColors');
+    return savedColors ? JSON.parse(savedColors) : PRESET_SCHEMES.identifiedVehicles[0].colors;
+  });
+  const [vehiclesSettingsOpen, setVehiclesSettingsOpen] = useState(false);
+
+  // Add state for Detected Objects colors and settings
+  const [detectedObjectsColors, setDetectedObjectsColors] = useState(() => {
+    const savedColors = localStorage.getItem('detectedObjectsColors');
+    return savedColors ? JSON.parse(savedColors) : {
+      person: '#ff4757',
+      vehicle: '#2ed573',
+      animal: '#ffa502',
+      object: '#1e90ff'
+    };
+  });
+
+  const [detectedObjectsSettingsOpen, setDetectedObjectsSettingsOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -720,130 +967,6 @@ const Dashboard = () => {
                 }
               }}
             />
-
-            {/* Color Selector Button */}
-            <Button
-              onClick={(e) => setColorAnchorEl(e.currentTarget)}
-              startIcon={<PaletteIcon size={isMobile ? 16 : 18} />}
-              sx={{
-                color: textColor,
-                textTransform: 'none',
-                fontSize: { xs: FONT_SIZES.sm, sm: FONT_SIZES.md, md: FONT_SIZES.lg },
-                '&:hover': {
-                  bgcolor: textColor === '#ffffff' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-                  color: textColor === '#ffffff' ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.9)',
-                }
-              }}
-            >
-              Theme
-            </Button>
-
-            {/* Download Report Button */}
-            <Button
-              onClick={handleDownloadReport}
-              startIcon={<Download size={isMobile ? 16 : 18} />}
-              sx={{
-                color: textColor,
-                textTransform: 'none',
-                fontSize: { xs: FONT_SIZES.sm, sm: FONT_SIZES.md, md: FONT_SIZES.lg },
-                '&:hover': {
-                  bgcolor: textColor === '#ffffff' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-                  color: textColor === '#ffffff' ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.9)',
-                }
-              }}
-            >
-              Download Report
-            </Button>
-
-            {/* Logout Button */}
-            <Button
-              onClick={handleLogout}
-              startIcon={<LogOut size={isMobile ? 16 : 18} />}
-              sx={{
-                color: textColor,
-                textTransform: 'none',
-                fontSize: { xs: FONT_SIZES.sm, sm: FONT_SIZES.md, md: FONT_SIZES.lg },
-                '&:hover': {
-                  bgcolor: textColor === '#ffffff' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-                  color: textColor === '#ffffff' ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.9)',
-                }
-              }}
-            >
-              Logout
-            </Button>
-
-            {/* Color Menu */}
-            <Popover
-              open={Boolean(colorAnchorEl)}
-              anchorEl={colorAnchorEl}
-              onClose={() => setColorAnchorEl(null)}
-              anchorOrigin={{
-                vertical: 'bottom',
-                horizontal: 'center',
-              }}
-              transformOrigin={{
-                vertical: 'top',
-                horizontal: 'center',
-              }}
-              PaperProps={{
-                sx: {
-                  bgcolor: 'rgba(0, 0, 0, 0.9)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: 2,
-                  p: 2,
-                  maxWidth: '300px'
-                }
-              }}
-            >
-              <Box sx={{ 
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
-                gap: 1.5,
-                p: 1
-              }}>
-                {GRADIENT_PACKS.map((pack) => (
-                  <Box
-                    key={pack.name}
-                    onClick={() => {
-                      setSelectedColor(pack.background);  // Use gradient background
-                      localStorage.setItem('selectedColor', pack.background);
-                      setColorAnchorEl(null);
-                    }}
-                    sx={{
-                      width: '100px',
-                      height: '60px',
-                      borderRadius: '8px',
-                      background: pack.gradient,
-                      cursor: 'pointer',
-                      transition: 'all 0.3s ease',
-                      border: selectedColor === pack.background ? 
-                        '2px solid #82ca9d' : 
-                        '1px solid rgba(255, 255, 255, 0.2)',
-                      '&:hover': {
-                        transform: 'scale(1.05)',
-                        boxShadow: '0 4px 20px rgba(0,0,0,0.4)'
-                      },
-                      position: 'relative',
-                      overflow: 'hidden'
-                    }}
-                  >
-                    <Box sx={{
-                      position: 'absolute',
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      padding: '4px',
-                      background: 'rgba(0,0,0,0.5)',
-                      color: 'white',
-                      fontSize: '0.7rem',
-                      textAlign: 'center'
-                    }}>
-                      {pack.name}
-                    </Box>
-                  </Box>
-                ))}
-              </Box>
-            </Popover>
           </Box>
         </Box>
 
@@ -1271,11 +1394,13 @@ const Dashboard = () => {
               width={containerWidth}
               margin={[15, 15]}
               containerPadding={[10, 10]}
-              isDraggable={true}
-              isResizable={true}
+              isDraggable={!isLayoutLocked}  // Add this
+              isResizable={!isLayoutLocked}  // Add this
               onLayoutChange={(newLayout) => {
-                setLayouts({ lg: newLayout });
-                localStorage.setItem('dashboardLayout', JSON.stringify(newLayout));
+                if (!isLayoutLocked) {  // Add this condition
+                  setLayouts({ lg: newLayout });
+                  localStorage.setItem('dashboardLayout', JSON.stringify(newLayout));
+                }
               }}
               draggableHandle=".drag-handle"
               resizeHandles={['se']}
@@ -1290,17 +1415,17 @@ const Dashboard = () => {
                   const widget = widgets.find(w => w.id === item.i);
                   if (!widget) return null;
 
-                  return (
-                    <Box 
+    return (
+      <Box
                       key={item.i} 
                       data-grid={item}
-                      sx={{ 
+        sx={{
                         bgcolor: textColor === '#ffffff' ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.05)',
                         p: 2, 
                         borderRadius: 2, 
                         height: '100%',
-                        width: '100%',
-                        display: 'flex',
+          width: '100%',
+          display: 'flex',
                         flexDirection: 'column',
                         overflow: 'hidden',
                         border: textColor === '#ffffff' ? '1px solid rgba(0, 0, 0, 0.1)' : '1px solid rgba(255, 255, 255, 0.1)',
@@ -1310,7 +1435,7 @@ const Dashboard = () => {
                     >
                       <Box 
                         className="drag-handle"
-                        sx={{ 
+                sx={{
                           position: 'absolute',
                           top: 8,
                           left: 8,
@@ -1333,9 +1458,9 @@ const Dashboard = () => {
                               isDemoMode={isDemoMode} 
                               textColor={textColor} 
                               setActivitySettingsOpen={setActivitySettingsOpen}
-                              chartType={chartType}
+                              chartType={activityChartType}
                               barColors={barColors}
-                              onChartTypeChange={(type) => setChartType(type)}
+                              onChartTypeChange={(type) => setActivityChartType(type as ChartType)}
                               onColorChange={(key, color) => {
                                 const newColors = { ...barColors, [key]: color };
                                 setBarColors(newColors);
@@ -1347,49 +1472,71 @@ const Dashboard = () => {
                               isDemoMode={isDemoMode} 
                               textColor={textColor}
                               setDailyPatternsSettingsOpen={setDailyPatternsSettingsOpen}
-                              chartType={chartType as ChartType}  // Add type assertion
-                              areaColors={dailyPatternsColors}
-                              onChartTypeChange={(type: ChartType) => setChartType(type)}
-                              onColorChange={(key, color) => {
+                              chartType={patternsChartType}
+                              areaColors={dailyPatternsColors}  // Changed from barColors to areaColors
+                              onChartTypeChange={(type) => setPatternsChartType(type as ChartType)}
+                              onColorChange={(key: string, color: string) => {
                                 const newColors = { ...dailyPatternsColors, [key]: color };
                                 setDailyPatternsColors(newColors);
                                 localStorage.setItem('dailyPatternsColors', JSON.stringify(newColors));
                               }}
                             />
                           case 'vehicles':
-                            return <IdentifiedVehicles isDemoMode={isDemoMode} textColor={textColor} />
+                            return <IdentifiedVehicles 
+                              isDemoMode={isDemoMode} 
+                              textColor={textColor}
+                              chartType={vehiclesChartType}
+                              colors={vehiclesColors}
+                              onChartTypeChange={(type: ChartType) => {
+                                setVehiclesChartType(type);
+                                localStorage.setItem('vehiclesChartType', type);
+                              }}
+                              onColorChange={(key: string, color: string) => {
+                                const newColors = { ...vehiclesColors, [key]: color };
+                                setVehiclesColors(newColors);
+                                localStorage.setItem('vehiclesColors', JSON.stringify(newColors));
+                              }}
+                            />
                           case 'calendar':
                             return <Calendar textColor={textColor} />
                           case 'colors':
                             return <PopularColors isDemoMode={isDemoMode} textColor={textColor} />
                           case 'objects':
-                            return <DetectedObjects isDemoMode={isDemoMode} textColor={textColor} />
+                            return <DetectedObjects 
+                              isDemoMode={isDemoMode} 
+                              textColor={textColor}
+                              colors={detectedObjectsColors}
+                              onColorChange={(key: string, color: string) => {
+                                const newColors = { ...detectedObjectsColors, [key]: color };
+                                setDetectedObjectsColors(newColors);
+                                localStorage.setItem('detectedObjectsColors', JSON.stringify(newColors));
+                              }}
+                            />
                           case 'objectsByCamera':
                             return <DetectedObjectsByCamera isDemoMode={isDemoMode} textColor={textColor} />
                           default:
                             return null
                         }
                       })()}
-                    </Box>
+          </Box>
                   )
                 })}
             </GridLayout>
-          </Box>
+      </Box>
         </motion.div>
 
         {/* Circular Menu Items */}
         <AnimatePresence>
           {isMenuOpen && menuItems.map((item, index) => {
-            // Calculate position for horizontal layout
-            const xOffset = (index + 1) * 60; // Space between icons
-            
-            return (
+            const xOffset = (index + 1) * 60;
+
+    return (
               <motion.div
                 key={item.label}
                 initial={{ scale: 0, x: 0 }}
                 animate={{
                   scale: 1,
-                  x: xOffset,  // Move right based on index
+                  x: xOffset,
                   transition: {
                     type: "spring",
                     stiffness: 400,
@@ -1409,18 +1556,20 @@ const Dashboard = () => {
                 }}
                 style={{
                   position: 'absolute',
-                  left: 90,  // Position after menu icon
-                  top: 40,   // Increased from 20 to 40 to move icons lower
+                  left: 90,
+                  top: 40,
                   zIndex: 1199,
                   transformOrigin: 'center center'
                 }}
               >
                 <IconButton
-                  onClick={() => {
+                  onClick={(e) => {
                     if (item.onClick) {
-                      item.onClick();
+                      item.onClick(e);  // Pass the event to the handler
                     }
-                    setIsMenuOpen(false);
+                    if (item.label !== 'Theme') {  // Keep menu open for theme selection
+                      setIsMenuOpen(false);
+                    }
                   }}
                   sx={{
                     color: textColor,
@@ -1442,36 +1591,126 @@ const Dashboard = () => {
           })}
         </AnimatePresence>
 
-        {/* Settings Drawer */}
-        <Box
-          sx={{
-            position: 'fixed',
-            right: settingsDrawerOpen ? 20 : -300,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            width: 250,
-            bgcolor: 'rgba(0, 0, 0, 0.9)',
-            backdropFilter: 'blur(8px)',
-            p: 2,
-            borderRadius: 2,
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-            transition: 'right 0.3s ease-in-out',
-            zIndex: 1300,
+        {/* Color Menu Popover */}
+        <Popover
+          open={Boolean(colorAnchorEl)}
+          anchorEl={colorAnchorEl}
+          onClose={() => setColorAnchorEl(null)}
+          anchorOrigin={{
+            vertical: 'bottom',
+            horizontal: 'center',
+          }}
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'center',
+          }}
+          PaperProps={{
+            sx: {
+              bgcolor: 'rgba(0, 0, 0, 0.9)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: 2,
+              p: 2,
+              maxWidth: '300px'
+            }
           }}
         >
           <Box sx={{ 
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            mb: 2,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: 1.5,
+            p: 1
+          }}>
+            {GRADIENT_PACKS.map((pack) => (
+              <Box
+                key={pack.name}
+                onClick={() => {
+                  setSelectedColor(pack.background);
+                  localStorage.setItem('selectedColor', pack.background);
+                  setColorAnchorEl(null);
+                  // Removed setIsMenuOpen(false);  // No longer closing menu after selection
+                }}
+                sx={{
+                  width: '100px',
+                  height: '60px',
+                  borderRadius: '8px',
+                  background: pack.gradient,
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  border: selectedColor === pack.background ? 
+                    '2px solid #82ca9d' : 
+                    '1px solid rgba(255, 255, 255, 0.2)',
+                  '&:hover': {
+                    transform: 'scale(1.05)',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.4)'
+                  },
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}
+              >
+                <Box sx={{
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  padding: '4px',
+                  background: 'rgba(0,0,0,0.5)',
+                  color: 'white',
+                  fontSize: '0.7rem',
+                  textAlign: 'center'
+                }}>
+                  {pack.name}
+                </Box>
+              </Box>
+            ))}
+          </Box>
+        </Popover>
+
+        {/* Settings Drawer */}
+      <Box
+        sx={{
+          position: 'fixed',
+          right: settingsDrawerOpen ? 20 : -500, // Increased from -300 to -500
+          top: '50%',
+          transform: 'translateY(-50%)',
+          width: 450, // Increased from 250 to 450
+          maxHeight: '80vh',
+          overflow: 'auto',
+          bgcolor: 'rgba(0, 0, 0, 0.9)',
+          backdropFilter: 'blur(8px)',
+          p: 3, // Increased padding from 2 to 3
+          borderRadius: 2,
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+          transition: 'right 0.3s ease-in-out',
+          zIndex: 1300,
+          '&::-webkit-scrollbar': {
+            width: '8px',
+          },
+          '&::-webkit-scrollbar-track': {
+            background: 'rgba(255, 255, 255, 0.05)',
+            borderRadius: '4px',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            background: 'rgba(255, 255, 255, 0.1)',
+            borderRadius: '4px',
+            '&:hover': {
+              background: 'rgba(255, 255, 255, 0.2)',
+            },
+          },
+        }}
+      >
+        <Box sx={{ 
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          mb: 2,
             color: textColor,
             fontSize: '1rem',
             fontWeight: 500
-          }}>
+        }}>
             Settings
-            <IconButton
-              onClick={() => setSettingsDrawerOpen(false)}
+          <IconButton
+            onClick={() => setSettingsDrawerOpen(false)}
               sx={{
                 padding: '4px',
                 color: textColor,
@@ -1481,401 +1720,532 @@ const Dashboard = () => {
               }}
             >
               <X size={16} />
-            </IconButton>
-          </Box>
+          </IconButton>
+        </Box>
 
           {/* Add draggable widget list */}
           <List sx={{ p: 0 }}>
             {widgets.map((widget) => (
-              <ListItem
-                key={widget.id}
-                draggable
-                onDragStart={(e) => {
-                  setDragState({
-                    isDragging: true,
-                    draggedWidget: widget.id
-                  });
-                  e.dataTransfer.setData('text/plain', widget.id);
-                  e.currentTarget.style.opacity = '0.5';
-                }}
-                onDragEnd={(e) => {
-                  setDragState({
-                    isDragging: false,
-                    draggedWidget: null
-                  });
-                  e.currentTarget.style.opacity = '1';
-                }}
-                sx={{
-                  mb: 1,
-                  borderRadius: 1,
-                  backgroundColor: visibleWidgets.includes(widget.id) 
-                    ? 'rgba(130, 202, 157, 0.1)'
-                    : 'rgba(255, 255, 255, 0.05)',
-                  '&:hover': {
-                    backgroundColor: visibleWidgets.includes(widget.id)
-                      ? 'rgba(130, 202, 157, 0.2)'
-                      : 'rgba(255, 255, 255, 0.08)',
-                    cursor: 'grab'
-                  },
-                  '&:active': {
-                    cursor: 'grabbing'
-                  },
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  p: 1
-                }}
-              >
-                <ListItemText
-                  primary={widget.title}
-                  sx={{
-                    '& .MuiListItemText-primary': {
-                      fontSize: '0.875rem',
-                      color: visibleWidgets.includes(widget.id)
-                        ? '#82ca9d'
-                        : textColor
-                    }
-                  }}
-                />
-                <Switch
-                  checked={visibleWidgets.includes(widget.id)}
-                  onChange={() => {
-                    if (visibleWidgets.includes(widget.id)) {
-                      const newVisibleWidgets = visibleWidgets.filter(id => id !== widget.id);
-                      setVisibleWidgets(newVisibleWidgets);
-                      localStorage.setItem('visibleWidgets', JSON.stringify(newVisibleWidgets));
-                    } else {
-                      const newVisibleWidgets = [...visibleWidgets, widget.id];
-                      setVisibleWidgets(newVisibleWidgets);
-                      localStorage.setItem('visibleWidgets', JSON.stringify(newVisibleWidgets));
-                    }
-                  }}
-                  size="small"
-                  sx={{
-                    '& .MuiSwitch-switchBase.Mui-checked': {
-                      color: '#82ca9d',
-                    },
-                    '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                      backgroundColor: '#82ca9d',
-                    },
-                    '& .MuiSwitch-track': {
-                      backgroundColor: 'rgba(255, 255, 255, 0.3)',
-                    },
-                  }}
-                />
-              </ListItem>
+              <Box key={widget.id}>
+                {(widget.id === 'activity' || widget.id === 'patterns' || widget.id === 'vehicles' || widget.id === 'objects') ? (
+                  <Box>
+                    {/* Component Dropdown Header */}
+                    <ListItem
+                      sx={{
+                        mb: widget.id === 'objects' ? 
+                          (detectedObjectsSettingsOpen ? 0 : 1) :
+                          widget.id === 'vehicles' ? 
+                          (vehiclesSettingsOpen ? 0 : 1) :
+                          widget.id === 'patterns' ?
+                          (dailyPatternsSettingsOpen ? 0 : 1) :
+                          (activityHistoryView === 'hidden' ? 1 : 0),
+                        borderRadius: widget.id === 'objects' ? 
+                          (detectedObjectsSettingsOpen ? '4px 4px 0 0' : 1) :
+                          widget.id === 'vehicles' ? 
+                          (vehiclesSettingsOpen ? '4px 4px 0 0' : 1) :
+                          widget.id === 'patterns' ?
+                          (dailyPatternsSettingsOpen ? '4px 4px 0 0' : 1) :
+                          (activityHistoryView === 'hidden' ? 1 : '4px 4px 0 0'),
+                        backgroundColor: 'rgba(130, 202, 157, 0.1)',
+                        cursor: 'pointer',
+                        p: 1,
+                        '&:hover': {
+                          backgroundColor: 'rgba(130, 202, 157, 0.2)',
+                        },
+                      }}
+                      onClick={() => {
+                        if (widget.id === 'objects') {
+                          setDetectedObjectsSettingsOpen(!detectedObjectsSettingsOpen);
+                        } else if (widget.id === 'vehicles') {
+                          setVehiclesSettingsOpen(!vehiclesSettingsOpen);
+                        } else if (widget.id === 'patterns') {
+                          setDailyPatternsSettingsOpen(!dailyPatternsSettingsOpen);
+                        } else if (widget.id === 'activity') {
+                          setActivityHistoryView(prev => prev === 'hidden' ? 'default' : 'hidden');
+                        }
+                      }}
+                    >
+                      <ListItemText
+                        primary={widget.title}
+                        sx={{
+                          '& .MuiListItemText-primary': {
+                            fontSize: '0.875rem',
+                            color: '#82ca9d'
+                          }
+                        }}
+                      />
+                      <IconButton
+                        size="small"
+                        sx={{ color: textColor }}
+                      >
+                        {widget.id === 'vehicles' ? 
+                          (vehiclesSettingsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />) :
+                          widget.id === 'patterns' ?
+                          (dailyPatternsSettingsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />) :
+                          widget.id === 'objects' ?
+                          (detectedObjectsSettingsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />) :
+                          (activityHistoryView === 'hidden' ? <ChevronDown size={16} /> : <ChevronUp size={16} />)
+                        }
+                      </IconButton>
+                    </ListItem>
+
+                    {/* Expanded Settings */}
+                    <Box
+                      sx={{
+                        height: widget.id === 'objects' ? 
+                          (detectedObjectsSettingsOpen ? 'auto' : 0) :
+                          widget.id === 'vehicles' ? 
+                          (vehiclesSettingsOpen ? 'auto' : 0) :
+                          widget.id === 'patterns' ?
+                          (dailyPatternsSettingsOpen ? 'auto' : 0) :
+                          (activityHistoryView === 'hidden' ? 0 : 'auto'),
+                        overflow: 'hidden',
+                        transition: 'all 0.3s ease',
+                        backgroundColor: 'rgba(130, 202, 157, 0.05)',
+                        borderRadius: '0 0 4px 4px',
+                        mb: widget.id === 'objects' ? 
+                          (detectedObjectsSettingsOpen ? 1 : 0) :
+                          widget.id === 'vehicles' ? 
+                          (vehiclesSettingsOpen ? 1 : 0) :
+                          widget.id === 'patterns' ?
+                          (dailyPatternsSettingsOpen ? 1 : 0) :
+                          (activityHistoryView === 'hidden' ? 0 : 1),
+                        opacity: widget.id === 'objects' ? 
+                          (detectedObjectsSettingsOpen ? 1 : 0) :
+                          widget.id === 'vehicles' ? 
+                          (vehiclesSettingsOpen ? 1 : 0) :
+                          widget.id === 'patterns' ?
+                          (dailyPatternsSettingsOpen ? 1 : 0) :
+                          (activityHistoryView === 'hidden' ? 0 : 1),
+                      }}
+                    >
+                      {((widget.id === 'objects' && detectedObjectsSettingsOpen) || 
+                        (widget.id === 'vehicles' && vehiclesSettingsOpen) || 
+                        (widget.id === 'patterns' && dailyPatternsSettingsOpen) || 
+                        (widget.id === 'activity' && activityHistoryView !== 'hidden')) && (
+                        <Box sx={{ p: 2 }}>
+                          {/* Chart Type Selection */}
+                          <Box sx={{ mb: 2 }}>
+                            <Box sx={{ mb: 1, color: textColor, fontSize: '0.75rem' }}>Chart Type</Box>
+                            <Select
+                              value={widget.id === 'vehicles' ? vehiclesChartType : 
+                                     widget.id === 'patterns' ? patternsChartType : 
+                                     widget.id === 'objects' ? 'pie' :
+                                     activityChartType}
+                              onChange={handleChartTypeChange(widget.id)}
+                              size="small"
+                              fullWidth
+                              sx={{
+                                height: '32px',
+                                fontSize: '0.875rem',
+                                color: textColor,
+                                backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                                '.MuiOutlinedInput-notchedOutline': {
+                                  borderColor: 'rgba(255, 255, 255, 0.1)',
+                                },
+                                '&:hover .MuiOutlinedInput-notchedOutline': {
+                                  borderColor: 'rgba(255, 255, 255, 0.3)',
+                                },
+                                '& .MuiSelect-icon': {
+                                  color: textColor
+                                }
+                              }}
+                              MenuProps={{
+                                PaperProps: {
+                                  sx: {
+                                    bgcolor: 'rgba(0, 0, 0, 0.9)',
+                                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                                    boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+                                  }
+                                }
+                              }}
+                            >
+                              {widget.id === 'vehicles' ? 
+                                ['bar', 'line'].map((type) => (
+                                  <MenuItem key={type} value={type}>
+                                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                                  </MenuItem>
+                                )) :
+                                widget.id === 'patterns' ? 
+                                  ['bar', 'line', 'scatter', 'bubble'].map((type) => (
+                                  <MenuItem key={type} value={type}>
+                                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                                  </MenuItem>
+                                )) :
+                                widget.id === 'objects' ? 
+                                  ['pie'].map((type) => (
+                                  <MenuItem key={type} value={type}>
+                                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                                  </MenuItem>
+                                )) :
+                                ['bar', 'line', 'scatter', 'bubble'].map((type) => (
+                                  <MenuItem key={type} value={type}>
+                                    {type.charAt(0).toUpperCase() + type.slice(1)}
+                                  </MenuItem>
+                                ))
+                              }
+                            </Select>
+                          </Box>
+
+                          {/* Color Themes */}
+                          <Box sx={{ mb: 2 }}>
+                            <Box sx={{ mb: 1, color: textColor, fontSize: '0.75rem' }}>Color Theme</Box>
+                            {widget.id === 'vehicles' ? 
+                              PRESET_SCHEMES.identifiedVehicles.map((scheme) => (
+                                <Box
+                                  key={scheme.name}
+                                  onClick={() => {
+                                    setVehiclesColors(scheme.colors);
+                                    localStorage.setItem('vehiclesColors', JSON.stringify(scheme.colors));
+                                  }}
+                                  sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 1,
+                                    mb: 1,
+                                    p: 1,
+                                    borderRadius: 1,
+                                    cursor: 'pointer',
+                                    backgroundColor: JSON.stringify(vehiclesColors) === JSON.stringify(scheme.colors) ? 
+                                      'rgba(255, 255, 255, 0.1)' : 
+                                      'transparent',
+                                    '&:hover': {
+                                      bgcolor: 'rgba(255, 255, 255, 0.05)',
+                                    }
+                                  }}
+                                >
+                                  <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                    {Object.values(scheme.colors).map((color, index) => (
+                                      <Box
+                                        key={index}
+                                        sx={{
+                                          width: 12,
+                                          height: 12,
+                                          borderRadius: '50%',
+                                          bgcolor: color,
+                                          border: '1px solid rgba(255, 255, 255, 0.2)'
+                                        }}
+                                      />
+                                    ))}
+                                  </Box>
+                                  <Box sx={{ 
+                                    color: textColor,
+                                    fontSize: '0.75rem',
+                                    flex: 1
+                                  }}>
+                                    {scheme.name}
+                                  </Box>
+                                </Box>
+                              )) :
+                              widget.id === 'patterns' ? 
+                              PRESET_SCHEMES.dailyPatterns.map((scheme) => (
+                                <Box
+                                  key={scheme.name}
+                                  onClick={() => {
+                                    setDailyPatternsColors(scheme.colors);
+                                    localStorage.setItem('dailyPatternsColors', JSON.stringify(scheme.colors));
+                                  }}
+                                  sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 1,
+                                    mb: 1,
+                                    p: 1,
+                                    borderRadius: 1,
+                                    cursor: 'pointer',
+                                    backgroundColor: JSON.stringify(dailyPatternsColors) === JSON.stringify(scheme.colors) ? 
+                                      'rgba(255, 255, 255, 0.1)' : 
+                                      'transparent',
+                                    '&:hover': {
+                                      bgcolor: 'rgba(255, 255, 255, 0.05)',
+                                    }
+                                  }}
+                                >
+                                  <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                    {Object.values(scheme.colors).map((color, index) => (
+                                      <Box
+                                        key={index}
+                                        sx={{
+                                          width: 12,
+                                          height: 12,
+                                          borderRadius: '50%',
+                                          bgcolor: color,
+                                          border: '1px solid rgba(255, 255, 255, 0.2)'
+                                        }}
+                                      />
+                                    ))}
+                                  </Box>
+                                  <Box sx={{ 
+                                    color: textColor,
+                                    fontSize: '0.75rem',
+                                    flex: 1
+                                  }}>
+                                    {scheme.name}
+                                  </Box>
+                                </Box>
+                              )) :
+                              widget.id === 'objects' ? 
+                              PRESET_SCHEMES.detectedObjects.map((scheme) => (
+                                <Box
+                                  key={scheme.name}
+                                  onClick={() => {
+                                    setDetectedObjectsColors(scheme.colors);
+                                    localStorage.setItem('detectedObjectsColors', JSON.stringify(scheme.colors));
+                                  }}
+                                  sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 1,
+                                    mb: 1,
+                                    p: 1,
+                                    borderRadius: 1,
+                                    cursor: 'pointer',
+                                    backgroundColor: JSON.stringify(detectedObjectsColors) === JSON.stringify(scheme.colors) ? 
+                                      'rgba(255, 255, 255, 0.1)' : 
+                                      'transparent',
+                                    '&:hover': {
+                                      bgcolor: 'rgba(255, 255, 255, 0.05)',
+                                    }
+                                  }}
+                                >
+                                  <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                    {Object.values(scheme.colors).map((color, index) => (
+                                      <Box
+                                        key={index}
+                                        sx={{
+                                          width: 12,
+                                          height: 12,
+                                          borderRadius: '50%',
+                                          bgcolor: color,
+                                          border: '1px solid rgba(255, 255, 255, 0.2)'
+                                        }}
+                                      />
+                                    ))}
+                                  </Box>
+                                  <Box sx={{ 
+                                    color: textColor,
+                                    fontSize: '0.75rem',
+                                    flex: 1
+                                  }}>
+                                    {scheme.name}
+                                  </Box>
+                                </Box>
+                              )) :
+                              COLOR_SETS.map((set) => (
+                                <Box
+                                  key={set.name}
+                                  onClick={() => {
+                                    setBarColors(set.colors);
+                                    localStorage.setItem('activityBarColors', JSON.stringify(set.colors));
+                                  }}
+                                  sx={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 1,
+                                    mb: 1,
+                                    p: 1,
+                                    borderRadius: 1,
+                                    cursor: 'pointer',
+                                    backgroundColor: barColors === set.colors ? 
+                                      'rgba(255, 255, 255, 0.1)' : 
+                                      'transparent',
+                                    '&:hover': {
+                                      bgcolor: 'rgba(255, 255, 255, 0.05)',
+                                    }
+                                  }}
+                                >
+                                  <Box sx={{ display: 'flex', gap: 0.5 }}>
+                                    {Object.values(set.colors).map((color, index) => (
+                                      <Box
+                                        key={index}
+                                        sx={{
+                                          width: 12,
+                                          height: 12,
+                                          borderRadius: '50%',
+                                          bgcolor: color,
+                                          border: '1px solid rgba(255, 255, 255, 0.2)'
+                                        }}
+                                      />
+                                    ))}
+                                  </Box>
+                                  <Box sx={{ 
+                                    color: textColor,
+                                    fontSize: '0.75rem',
+                                    flex: 1
+                                  }}>
+                                    {set.name}
+                                  </Box>
+                                </Box>
+                              ))
+                            }
+                          </Box>
+
+                          {/* Preview */}
+                          <Box sx={{ mb: 2 }}>
+                            <Box sx={{ mb: 1, color: textColor, fontSize: '0.75rem' }}>Preview</Box>
+                            <Box
+                              draggable
+                              onDragStart={(e) => {
+                                setDragState({
+                                  isDragging: true,
+                                  draggedWidget: widget.id
+                                });
+                                e.dataTransfer.setData('text/plain', widget.id);
+                                e.currentTarget.style.opacity = '0.5';
+                              }}
+                              onDragEnd={(e) => {
+                                setDragState({
+                                  isDragging: false,
+                                  draggedWidget: null
+                                });
+                                e.currentTarget.style.opacity = '1';
+                              }}
+                              sx={{
+                                cursor: 'grab',
+                                '&:active': {
+                                  cursor: 'grabbing'
+                                },
+                                '&:hover': {
+                                  transform: 'scale(1.02)',
+                                  transition: 'transform 0.2s ease'
+                                }
+                              }}
+                            >
+                              <GraphPreview
+                                type={widget.id === 'vehicles' ? vehiclesChartType :
+                                      widget.id === 'patterns' ? patternsChartType :
+                                      widget.id === 'objects' ? 'pie' :
+                                      activityChartType}
+                                colors={widget.id === 'vehicles' ? vehiclesColors :
+                                        widget.id === 'patterns' ? dailyPatternsColors :
+                                        widget.id === 'objects' ? detectedObjectsColors :
+                                        barColors}
+                                textColor={textColor}
+                              />
+                            </Box>
+                          </Box>
+
+                          {/* Delete Button */}
+                          <Button
+                            variant="outlined"
+                            color="error"
+                            startIcon={<Trash2 size={16} />}
+                            onClick={() => {
+                              const newVisibleWidgets = visibleWidgets.filter(id => id !== widget.id);
+                              setVisibleWidgets(newVisibleWidgets);
+                              localStorage.setItem('visibleWidgets', JSON.stringify(newVisibleWidgets));
+                              if (widget.id === 'vehicles') {
+                                setVehiclesSettingsOpen(false);
+                              } else if (widget.id === 'patterns') {
+                                setDailyPatternsSettingsOpen(false);
+                              } else if (widget.id === 'objects') {
+                                setDetectedObjectsSettingsOpen(false);
+                              } else {
+                                setActivityHistoryView('hidden');
+                              }
+                            }}
+                            fullWidth
+                            sx={{
+                              mt: 2,
+                              height: '32px',
+                              fontSize: '0.75rem',
+                              borderColor: 'rgba(255, 99, 99, 0.5)',
+                              color: 'rgb(255, 99, 99)',
+                              '&:hover': {
+                                borderColor: 'rgba(255, 99, 99, 0.8)',
+                                backgroundColor: 'rgba(255, 99, 99, 0.1)'
+                              },
+                              textTransform: 'none'
+                            }}
+                          >
+                            Remove Component
+                          </Button>
+                        </Box>
+                      )}
+                    </Box>
+                  </Box>
+                ) : (
+                  // Other widgets with switch toggle
+                  <ListItem
+                    draggable
+                    onDragStart={(e) => {
+                      setDragState({
+                        isDragging: true,
+                        draggedWidget: widget.id
+                      });
+                      e.dataTransfer.setData('text/plain', widget.id);
+                      e.currentTarget.style.opacity = '0.5';
+                    }}
+                    onDragEnd={(e) => {
+                      setDragState({
+                        isDragging: false,
+                        draggedWidget: null
+                      });
+                      e.currentTarget.style.opacity = '1';
+                    }}
+                    sx={{
+                      mb: 1,
+                      borderRadius: 1,
+                      backgroundColor: visibleWidgets.includes(widget.id) 
+                        ? 'rgba(130, 202, 157, 0.1)'
+                        : 'rgba(255, 255, 255, 0.05)',
+                      '&:hover': {
+                        backgroundColor: visibleWidgets.includes(widget.id)
+                          ? 'rgba(130, 202, 157, 0.2)'
+                          : 'rgba(255, 255, 255, 0.08)',
+                        cursor: 'grab'
+                      },
+                      '&:active': {
+                        cursor: 'grabbing'
+                      },
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      p: 1
+                    }}
+                  >
+                    <ListItemText
+                      primary={widget.title}
+                      sx={{
+                        '& .MuiListItemText-primary': {
+                          fontSize: '0.875rem',
+                          color: visibleWidgets.includes(widget.id)
+                            ? '#82ca9d'
+                            : textColor
+                        }
+                      }}
+                    />
+                    <Switch
+                      checked={visibleWidgets.includes(widget.id)}
+                      onChange={() => {
+                        if (visibleWidgets.includes(widget.id)) {
+                          const newVisibleWidgets = visibleWidgets.filter(id => id !== widget.id);
+                          setVisibleWidgets(newVisibleWidgets);
+                          localStorage.setItem('visibleWidgets', JSON.stringify(newVisibleWidgets));
+                        } else {
+                          const newVisibleWidgets = [...visibleWidgets, widget.id];
+                          setVisibleWidgets(newVisibleWidgets);
+                          localStorage.setItem('visibleWidgets', JSON.stringify(newVisibleWidgets));
+                        }
+                      }}
+                      size="small"
+                      sx={{
+                        '& .MuiSwitch-switchBase.Mui-checked': {
+                          color: '#82ca9d',
+                        },
+                        '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                          backgroundColor: '#82ca9d',
+                        },
+                        '& .MuiSwitch-track': {
+                          backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                        },
+                      }}
+                    />
+                  </ListItem>
+                )}
+              </Box>
             ))}
           </List>
-        </Box>
-
-        {/* Activity History Settings */}
-        <Box
-          sx={{
-            position: 'fixed',
-            right: activitySettingsOpen ? 20 : -300,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            width: 250,
-            bgcolor: 'rgba(0, 0, 0, 0.9)',
-            backdropFilter: 'blur(8px)',
-            p: 2,
-            borderRadius: 2,
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-            transition: 'right 0.3s ease-in-out',
-            zIndex: 1300,
-          }}
-        >
-          <Box sx={{ 
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            mb: 2,
-            color: textColor,
-            fontSize: '1rem',
-            fontWeight: 500
-          }}>
-            Activity History Settings
-            <IconButton
-              onClick={() => setActivitySettingsOpen(false)}
-              sx={{
-                padding: '4px',
-                color: textColor,
-                '&:hover': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                }
-              }}
-            >
-              <X size={16} />
-            </IconButton>
-          </Box>
-
-          {/* Chart Type Selection */}
-          <Box sx={{ mb: 3 }}>
-            <Box sx={{ mb: 1, color: textColor, fontSize: '0.875rem' }}>Chart Type</Box>
-            <Select
-              value={chartType}
-              onChange={handleChartTypeChange}
-              size="small"
-              fullWidth
-              MenuProps={{  // Add this
-                PaperProps: {
-                  sx: {
-                    bgcolor: 'rgba(0, 0, 0, 0.9)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-                  }
-                }
-              }}
-              sx={{
-                height: '36px',
-                fontSize: '0.875rem',
-                color: textColor,
-                backgroundColor: 'rgba(0, 0, 0, 0.9)',  // Darker background
-                '.MuiOutlinedInput-notchedOutline': {
-                  borderColor: 'rgba(255, 255, 255, 0.1)',
-                },
-                '&:hover .MuiOutlinedInput-notchedOutline': {
-                  borderColor: 'rgba(255, 255, 255, 0.3)',
-                },
-                '& .MuiSelect-icon': {  // Add this
-                  color: textColor
-                }
-              }}
-            >
-              {['bar', 'line', 'scatter', 'bubble'].map((type) => (
-                <MenuItem 
-                  key={type} 
-                  value={type}
-                  sx={{ 
-                    fontSize: '0.875rem',
-                    color: textColor,
-                    bgcolor: 'rgba(0, 0, 0, 0.9)',  // Darker background
-                    '&:hover': {
-                      bgcolor: 'rgba(255, 255, 255, 0.1)'
-                    },
-                    '&.Mui-selected': {
-                      bgcolor: 'rgba(255, 255, 255, 0.15)'
-                    },
-                    '&.Mui-selected:hover': {
-                      bgcolor: 'rgba(255, 255, 255, 0.2)'
-                    }
-                  }}
-                >
-                  {type.charAt(0).toUpperCase() + type.slice(1)} Chart
-                </MenuItem>
-              ))}
-            </Select>
-          </Box>
-
-          {/* Color Settings */}
-          <Box sx={{ mb: 2 }}>
-            <Box sx={{ mb: 1, color: textColor, fontSize: '0.875rem' }}>Color Themes</Box>
-            {COLOR_SETS.map((set) => (
-              <Box
-                key={set.name}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  mb: 1,
-                  p: 1,
-                  borderRadius: 1,
-                  cursor: 'pointer',
-                  backgroundColor: barColors === set.colors ? 
-                    'rgba(255, 255, 255, 0.1)' : 
-                    'transparent',
-                  '&:hover': {
-                    bgcolor: 'rgba(255, 255, 255, 0.05)',
-                  }
-                }}
-                onClick={() => {
-                  setBarColors(set.colors);
-                  localStorage.setItem('activityBarColors', JSON.stringify(set.colors));
-                }}
-              >
-                <Box sx={{ 
-                  display: 'flex', 
-                  gap: 0.5 
-                }}>
-                  {Object.values(set.colors).map((color, index) => (
-                    <Box
-                      key={index}
-                      sx={{
-                        width: 12,
-                        height: 12,
-                        borderRadius: '50%',
-                        bgcolor: color,
-                        border: '1px solid rgba(255, 255, 255, 0.2)'
-                      }}
-                    />
-                  ))}
-                </Box>
-                <Box sx={{ 
-                  color: textColor,
-                  fontSize: '0.875rem',
-                  flex: 1
-                }}>
-                  {set.name}
-                </Box>
-              </Box>
-            ))}
-          </Box>
-        </Box>
-
-        {/* DailyPatterns Settings */}
-        <Box
-          sx={{
-            position: 'fixed',
-            right: dailyPatternsSettingsOpen ? 20 : -300,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            width: 250,
-            bgcolor: 'rgba(0, 0, 0, 0.9)',
-            backdropFilter: 'blur(8px)',
-            p: 2,
-            borderRadius: 2,
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-            transition: 'right 0.3s ease-in-out',
-            zIndex: 1300,
-          }}
-        >
-          <Box sx={{ 
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            mb: 2,
-            color: textColor,
-            fontSize: '1rem',
-            fontWeight: 500
-          }}>
-            DailyPatterns Settings
-            <IconButton
-              onClick={() => setDailyPatternsSettingsOpen(false)}
-              sx={{
-                padding: '4px',
-                color: textColor,
-                '&:hover': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                }
-              }}
-            >
-              <X size={16} />
-            </IconButton>
-          </Box>
-
-          {/* Chart Type Selection */}
-          <Box sx={{ mb: 3 }}>
-            <Box sx={{ mb: 1, color: textColor, fontSize: '0.875rem' }}>Chart Type</Box>
-            <Select
-              value={chartType}
-              onChange={handleChartTypeChange}
-              size="small"
-              fullWidth
-              MenuProps={{  // Add this
-                PaperProps: {
-                  sx: {
-                    bgcolor: 'rgba(0, 0, 0, 0.9)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-                  }
-                }
-              }}
-              sx={{
-                height: '36px',
-                fontSize: '0.875rem',
-                color: textColor,
-                backgroundColor: 'rgba(0, 0, 0, 0.9)',  // Darker background
-                '.MuiOutlinedInput-notchedOutline': {
-                  borderColor: 'rgba(255, 255, 255, 0.1)',
-                },
-                '&:hover .MuiOutlinedInput-notchedOutline': {
-                  borderColor: 'rgba(255, 255, 255, 0.3)',
-                },
-                '& .MuiSelect-icon': {  // Add this
-                  color: textColor
-                }
-              }}
-            >
-              {['bar', 'line', 'scatter', 'bubble'].map((type) => (
-                <MenuItem 
-                  key={type} 
-                  value={type}
-                  sx={{ 
-                    fontSize: '0.875rem',
-                    color: textColor,
-                    bgcolor: 'rgba(0, 0, 0, 0.9)',  // Darker background
-                    '&:hover': {
-                      bgcolor: 'rgba(255, 255, 255, 0.1)'
-                    },
-                    '&.Mui-selected': {
-                      bgcolor: 'rgba(255, 255, 255, 0.15)'
-                    },
-                    '&.Mui-selected:hover': {
-                      bgcolor: 'rgba(255, 255, 255, 0.2)'
-                    }
-                  }}
-                >
-                  {type.charAt(0).toUpperCase() + type.slice(1)} Chart
-                </MenuItem>
-              ))}
-            </Select>
-          </Box>
-
-          {/* Color Settings */}
-          <Box sx={{ mb: 2 }}>
-            <Box sx={{ mb: 1, color: textColor, fontSize: '0.875rem' }}>Color Themes</Box>
-            {COLOR_SETS.map((set) => (
-              <Box
-                key={set.name}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  mb: 1,
-                  p: 1,
-                  borderRadius: 1,
-                  cursor: 'pointer',
-                  backgroundColor: dailyPatternsColors === set.colors ? 
-                    'rgba(255, 255, 255, 0.1)' : 
-                    'transparent',
-                  '&:hover': {
-                    bgcolor: 'rgba(255, 255, 255, 0.05)',
-                  }
-                }}
-                onClick={() => {
-                  setDailyPatternsColors(set.colors);
-                  localStorage.setItem('dailyPatternsColors', JSON.stringify(set.colors));
-                }}
-              >
-                <Box sx={{ 
-                  display: 'flex', 
-                  gap: 0.5 
-                }}>
-                  {Object.values(set.colors).map((color, index) => (
-                    <Box
-                      key={index}
-                      sx={{
-                        width: 12,
-                        height: 12,
-                        borderRadius: '50%',
-                        bgcolor: color,
-                        border: '1px solid rgba(255, 255, 255, 0.2)'
-                      }}
-                    />
-                  ))}
-                </Box>
-                <Box sx={{ 
-                  color: textColor,
-                  fontSize: '0.875rem',
-                  flex: 1
-                }}>
-                  {set.name}
-                </Box>
-              </Box>
-            ))}
-          </Box>
         </Box>
       </Box>
     </motion.div>
@@ -1904,6 +2274,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/localconfig" 
+              element={
+                <ProtectedRoute>
+                  <LocalConfig />
                 </ProtectedRoute>
               } 
             />

@@ -31,14 +31,25 @@ const Login = () => {
       // Simulate login delay
       await new Promise(resolve => setTimeout(resolve, 1000))
 
-      localStorage.setItem('token', 'demo-token')
-      navigate('/dashboard')
+      // Check credentials and route accordingly
+      if (credentials.username === 'admin' && credentials.password === 'admin123') {
+        localStorage.setItem('token', 'admin-token')
+        localStorage.setItem('userRole', 'admin')
+        navigate('/localconfig')
+      } else if (credentials.username === 'user' && credentials.password === 'user123') {
+        localStorage.setItem('token', 'user-token')
+        localStorage.setItem('userRole', 'user')
+        navigate('/dashboard')
+      } else {
+        throw new Error('Invalid username or password')
+      }
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message)
       } else {
         setError('An unexpected error occurred')
       }
+    } finally {
       setIsLoading(false)
     }
   }

@@ -9,6 +9,8 @@ import { Settings } from 'lucide-react'
 interface DetectedObjectsProps {
   isDemoMode: boolean;
   textColor: string;
+  colors: Record<string, string>;
+  onColorChange: (key: string, color: string) => void;
 }
 
 // Update the data to be dynamic based on isDemoMode
@@ -40,7 +42,7 @@ const generateData = (isDemoMode: boolean) => [
   }
 ]
 
-const DetectedObjects = ({ isDemoMode, textColor }: DetectedObjectsProps) => {
+const DetectedObjects = ({ isDemoMode, textColor, colors, onColorChange }: DetectedObjectsProps) => {
   const [selectedItem, setSelectedItem] = useState<string | null>(null)
   const [rotation, setRotation] = useState(-90)
 
