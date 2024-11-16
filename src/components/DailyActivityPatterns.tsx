@@ -84,7 +84,6 @@ const DailyActivityPatterns = ({
   textColor,
   setDailyPatternsSettingsOpen,
   chartType,
-  onChartTypeChange
 }: DailyActivityPatternsProps) => {
   const data = useMemo(() => generateData(isDemoMode), [isDemoMode])
   const [selectedActivity, setSelectedActivity] = useState<ActivityType | null>(null)

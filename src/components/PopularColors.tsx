@@ -1,283 +1,179 @@
-import { Box } from '@mui/material'
-import { ResponsivePie } from '@nivo/pie'
-import { motion, AnimatePresence } from 'framer-motion'
-import { useState, useEffect } from 'react'
+import { Box, Typography, useMediaQuery } from '@mui/material';
+import { ResponsivePie } from '@nivo/pie';
+import { PopularColorsProps } from '../types/dashboard';
+import { useState } from 'react';
 
-interface PopularColorsProps {
-  isDemoMode: boolean;
-}
+const PopularColors = ({ textColor }: PopularColorsProps) => {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const isSmall = useMediaQuery('(max-width:600px)');
 
-const generateData = (isDemoMode: boolean) => [
-  { 
-    id: 'Black', 
-    value: isDemoMode ? 35 : 0, 
-    color: '#000000' 
-  },
-  { 
-    id: 'White', 
-    value: isDemoMode ? 25 : 0, 
-    color: '#FFFFFF' 
-  },
-  { 
-    id: 'Blue', 
-    value: isDemoMode ? 15 : 0, 
-    color: '#4169E1' 
-  },
-  { 
-    id: 'Red', 
-    value: isDemoMode ? 10 : 0, 
-    color: '#FF4444' 
-  },
-  { 
-    id: 'Gray', 
-    value: isDemoMode ? 8 : 0, 
-    color: '#808080' 
-  },
-  { 
-    id: 'Beige', 
-    value: isDemoMode ? 4 : 0, 
-    color: '#F5F5DC' 
-  },
-  { 
-    id: 'Green', 
-    value: isDemoMode ? 2 : 0, 
-    color: '#4CAF50' 
-  },
-  { 
-    id: 'Yellow', 
-    value: isDemoMode ? 1 : 0, 
-    color: '#FFEB3B' 
-  }
-]
-
-const PopularColors = ({ isDemoMode }: PopularColorsProps) => {
-  const [selectedItem, setSelectedItem] = useState<string | null>(null)
-  const [rotation, setRotation] = useState(-90)
-  const [data, setData] = useState(() => generateData(isDemoMode))
-
-  useEffect(() => {
-    // Initial load animation
-    const timer = setTimeout(() => {
-      setRotation(270)
-    }, 100)
-
-    return () => clearTimeout(timer)
-  }, [])
-
-  useEffect(() => {
-    // Rotation animation on selection
-    if (selectedItem) {
-      setRotation(prev => prev + 360)
+  const data = [
+    {
+      id: 'Red',
+      label: 'Red',
+      value: 35,
+      color: '#FF4757'
+    },
+    {
+      id: 'Green',
+      label: 'Green',
+      value: 25,
+      color: '#2ED573'
+    },
+    {
+      id: 'Blue',
+      label: 'Blue',
+      value: 20,
+      color: '#1E90FF'
+    },
+    {
+      id: 'Yellow',
+      label: 'Yellow',
+      value: 15,
+      color: '#FFA502'
+    },
+    {
+      id: 'Gray',
+      label: 'Gray',
+      value: 5,
+      color: '#A4B0BE'
     }
-  }, [selectedItem])
+  ];
 
-  // Update data when isDemoMode changes
-  useEffect(() => {
-    setData(generateData(isDemoMode))
-  }, [isDemoMode])
+  const handleSelect = (id: string) => {
+    setSelectedId(selectedId === id ? null : id);
+  };
 
-  const getColor = (itemId: string, originalColor: string) => {
-    if (!selectedItem) return originalColor
-    return itemId === selectedItem ? originalColor : 'rgba(0, 0, 0, 0.5)'
-  }
+  const selectedItem = data.find(item => item.id === selectedId);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.6, ease: "easeOut" }}
-    >
-      <Box sx={{ width: '100%', height: '100%' }}>
-        <Box sx={{ height: 200 }}>
+    <Box sx={{ 
+      width: '100%', 
+      height: '100%',
+      color: textColor,
+      p: 2,
+      backgroundColor: 'rgba(0, 0, 0, 0.2)',
+      borderRadius: 2,
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden'
+    }}>
+      <Typography variant="h6" sx={{ mb: 1 }}>
+        Popular T-shirt Colors
+      </Typography>
+
+      <Box sx={{ 
+        position: 'relative',
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0
+      }}>
+        <Box sx={{ 
+          position: 'relative',
+          flex: 1,
+          minHeight: 0
+        }}>
           <ResponsivePie
-            data={data.map(item => ({
-              ...item,
-              color: getColor(item.id, item.color),
-              value: item.id === selectedItem ? item.value * 1.2 : item.value
-            }))}
+            data={data}
             margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
             innerRadius={0.6}
             padAngle={0.5}
-            cornerRadius={3}
+            cornerRadius={0}
             colors={{ datum: 'data.color' }}
+            borderWidth={0}
             enableArcLabels={false}
             enableArcLinkLabels={false}
             animate={true}
             motionConfig={{
-              mass: 0.8,
-              tension: 150,
-              friction: 20,
-              clamp: false,
-              precision: 0.01,
-              velocity: 0
+              mass: 1,
+              tension: 170,
+              friction: 26,
+              clamp: true,
+              precision: 0.01
             }}
-            startAngle={rotation}
-            endAngle={rotation + 360}
-            transitionMode="startAngle"
-            theme={{
-              background: 'transparent',
-              text: { fill: 'rgba(255, 255, 255, 0.7)' },
-              tooltip: {
-                container: {
-                  background: 'rgba(0, 0, 0, 0.8)',
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  fontSize: '12px',
-                  borderRadius: '4px',
-                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.5)',
-                  padding: '8px',
-                  border: '1px solid rgba(255, 255, 255, 0.1)'
-                }
-              }
-            }}
-            onClick={(data) => {
-              if (selectedItem === data.id) {
-                setSelectedItem(null)
-              } else {
-                setSelectedItem(data.id as string)
-              }
-            }}
-            tooltip={({ datum }) => (
-              <Box sx={{ 
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1
-              }}>
-                <Box 
-                  sx={{ 
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    bgcolor: datum.color,
-                    border: datum.color === '#FFFFFF' ? '1px solid rgba(255, 255, 255, 0.2)' : 'none'
-                  }}
-                />
-                <span>{`${datum.id}: ${datum.value}`}</span>
-              </Box>
-            )}
-            layers={[
-              'arcs',
-              'arcLabels',
-              'arcLinkLabels',
-              'legends',
-              ({ centerX, centerY }) => (
-                <motion.g
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                >
-                  {selectedItem && (
-                    <>
-                      <circle
-                        cx={centerX}
-                        cy={centerY}
-                        r={30}
-                        fill="rgba(0, 0, 0, 0.7)"
-                      />
-                      <text
-                        x={centerX}
-                        y={centerY - 8}
-                        textAnchor="middle"
-                        dominantBaseline="central"
-                        style={{
-                          fontSize: '14px',
-                          fill: 'rgba(255, 255, 255, 0.9)',
-                          fontWeight: 'bold'
-                        }}
-                      >
-                        {data.find(d => d.id === selectedItem)?.value}
-                      </text>
-                      <text
-                        x={centerX}
-                        y={centerY + 8}
-                        textAnchor="middle"
-                        dominantBaseline="central"
-                        style={{
-                          fontSize: '12px',
-                          fill: 'rgba(255, 255, 255, 0.7)',
-                        }}
-                      >
-                        {selectedItem}
-                      </text>
-                    </>
-                  )}
-                </motion.g>
-              ),
-            ]}
+            onClick={(node) => handleSelect(node.id.toString())}
+            isInteractive={true}
+            activeOuterRadiusOffset={8}
           />
+          <Box
+            sx={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              textAlign: 'center',
+              pointerEvents: 'none',
+              transition: 'opacity 0.3s ease',
+              opacity: selectedItem ? 1 : 0
+            }}
+          >
+            {selectedItem && (
+              <Typography
+                sx={{
+                  fontSize: isSmall ? '1.25rem' : '1.5rem',
+                  fontWeight: 'bold',
+                  color: selectedItem.color,
+                  textShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                }}
+              >
+                {selectedItem.value}%
+              </Typography>
+            )}
+          </Box>
         </Box>
 
         <Box sx={{ 
           display: 'flex',
           flexWrap: 'wrap',
-          gap: 1.5,
-          mt: 1,
-          pl: 2,
-          pr: 2,
-          justifyContent: 'center'
+          gap: 1,
+          justifyContent: 'center',
+          padding: '8px 0',
+          marginTop: 'auto'
         }}>
-          <AnimatePresence>
-            {data.map(({ id: label, color }, index) => (
-              <motion.div
-                key={label}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ 
-                  opacity: selectedItem ? (selectedItem === label ? 1 : 0.5) : 1,
-                  y: 0,
-                  scale: selectedItem === label ? 1.1 : 1,
+          {data.map((item) => (
+            <Box 
+              key={item.id}
+              onClick={() => handleSelect(item.id)}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1,
+                cursor: 'pointer',
+                padding: '4px 8px',
+                borderRadius: 1,
+                backgroundColor: selectedId === item.id ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)'
+                }
+              }}
+            >
+              <Box
+                sx={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: '3px',
+                  backgroundColor: item.color,
+                  flexShrink: 0
                 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ 
-                  duration: 0.4,
-                  delay: index * 0.1,
-                  ease: "easeOut"
+              />
+              <Typography
+                variant="caption"
+                sx={{
+                  color: textColor,
+                  fontWeight: selectedId === item.id ? 700 : 500,
+                  fontSize: isSmall ? '0.7rem' : '0.75rem'
                 }}
-                onClick={() => {
-                  if (selectedItem === label) {
-                    setSelectedItem(null)
-                  } else {
-                    setSelectedItem(label)
-                  }
-                }}
-                style={{ cursor: 'pointer' }}
               >
-                <Box sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: 1,
-                  minWidth: 'fit-content',
-                  padding: '4px 8px',
-                  borderRadius: '4px',
-                  backgroundColor: selectedItem === label ? 'rgba(255, 255, 255, 0.05)' : 'transparent',
-                  transition: 'all 0.3s ease'
-                }}>
-                  <Box 
-                    sx={{ 
-                      width: 8,
-                      height: 8,
-                      borderRadius: '50%',
-                      bgcolor: selectedItem ? getColor(label, color) : color,
-                      border: color === '#FFFFFF' ? '1px solid rgba(255, 255, 255, 0.2)' : 'none',
-                      flexShrink: 0,
-                      boxShadow: selectedItem === label ? '0 0 8px rgba(255, 255, 255, 0.3)' : 'none',
-                      transition: 'all 0.3s ease'
-                    }}
-                  />
-                  <Box sx={{ 
-                    color: selectedItem === label ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.5)', 
-                    fontSize: '0.75rem',
-                    whiteSpace: 'nowrap',
-                    transition: 'color 0.3s ease'
-                  }}>
-                    {label}
-                  </Box>
-                </Box>
-              </motion.div>
-            ))}
-          </AnimatePresence>
+                {item.label}
+              </Typography>
+            </Box>
+          ))}
         </Box>
       </Box>
-    </motion.div>
-  )
-}
+    </Box>
+  );
+};
 
-export default PopularColors
+export default PopularColors;

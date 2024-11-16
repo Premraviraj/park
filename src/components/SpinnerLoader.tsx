@@ -1,186 +1,132 @@
-import { useEffect, useRef, useState } from 'react'
-import * as THREE from 'three'
-import { Box, LinearProgress, useTheme, useMediaQuery } from '@mui/material'
+import { useEffect, useRef } from 'react';
+import { Box } from '@mui/material';
+import gsap from 'gsap';
 
 const SpinnerLoader = () => {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [progress, setProgress] = useState(0)
-  const theme = useTheme()
-  
-  // Responsive breakpoints
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'))
-  const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'))
-  
-  // Calculate sizes based on screen size
-  const getLoaderSize = () => {
-    if (isMobile) return 100
-    if (isTablet) return 120
-    return 150
-  }
+  const cameraRef = useRef<SVGSVGElement>(null);
 
-  const getProgressBarWidth = () => {
-    if (isMobile) return '120px'
-    if (isTablet) return '150px'
-    return '180px'
-  }
-  
   useEffect(() => {
-    if (!containerRef.current) return
+    if (!cameraRef.current) return;
 
-    // Scene setup
-    const scene = new THREE.Scene()
-    const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000)
-    const renderer = new THREE.WebGLRenderer({ 
-      alpha: true,
-      antialias: true 
+    const camera = cameraRef.current;
+    const lens = camera.querySelector('.camera-lens');
+    const flash = camera.querySelector('.camera-flash');
+    const text = camera.querySelector('.loading-text');
+
+    // Create timeline
+    const tl = gsap.timeline({
+      repeat: -1,
+      defaults: { ease: 'power2.inOut' }
+    });
+
+    // Initial state
+    gsap.set([camera, lens, flash, text], { opacity: 0 });
+
+    // Animation sequence
+    tl.to(camera, {
+      opacity: 1,
+      duration: 0.5
     })
-    
-    const size = getLoaderSize()
-    renderer.setSize(size, size)
-    containerRef.current.appendChild(renderer.domElement)
-
-    // Create outer ring
-    const torusGeometry = new THREE.TorusGeometry(1, 0.1, 16, 100)
-    const torusMaterial = new THREE.MeshBasicMaterial({ 
-      color: 0x00ff88,
-      transparent: true,
-      opacity: 0.8,
+    .to(lens, {
+      opacity: 1,
+      scale: 1.1,
+      duration: 0.5
     })
-    const torus = new THREE.Mesh(torusGeometry, torusMaterial)
-    scene.add(torus)
-
-    // Create inner ring
-    const innerTorusGeometry = new THREE.TorusGeometry(0.7, 0.05, 16, 100)
-    const innerTorusMaterial = new THREE.MeshBasicMaterial({ 
-      color: 0x4488ff,
-      transparent: true,
-      opacity: 0.6,
+    .to(flash, {
+      opacity: 1,
+      duration: 0.3
     })
-    const innerTorus = new THREE.Mesh(innerTorusGeometry, innerTorusMaterial)
-    innerTorus.rotation.x = Math.PI / 2
-    scene.add(innerTorus)
+    .to(text, {
+      opacity: 1,
+      y: 0,
+      duration: 0.5
+    })
+    .to(lens, {
+      rotate: 360,
+      duration: 2,
+      ease: 'none',
+      repeat: -1
+    }, '<')
+    .to(flash, {
+      opacity: 0.5,
+      duration: 0.5,
+      yoyo: true,
+      repeat: -1
+    }, '<');
 
-    // Add ambient light
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
-    scene.add(ambientLight)
-
-    camera.position.z = 3
-
-    // Progress animation
-    const startTime = Date.now()
-    const duration = 2000 // 2 seconds
-
-    // Animation
-    const animate = () => {
-      // Rotate outer ring
-      torus.rotation.x += 0.01
-      torus.rotation.y += 0.02
-
-      // Rotate inner ring
-      innerTorus.rotation.y += 0.03
-      innerTorus.rotation.z += 0.02
-
-      // Pulsing effect
-      const time = Date.now() * 0.001
-      const pulse = Math.sin(time * 2) * 0.1 + 0.9
-      torus.scale.set(pulse, pulse, pulse)
-      innerTorus.scale.set(pulse, pulse, pulse)
-
-      // Update progress
-      const elapsed = Date.now() - startTime
-      const newProgress = Math.min((elapsed / duration) * 100, 100)
-      setProgress(newProgress)
-
-      renderer.render(scene, camera)
-      return requestAnimationFrame(animate)
-    }
-
-    const animationId = animate()
-
-    // Handle window resize
-    const handleResize = () => {
-      const newSize = getLoaderSize()
-      renderer.setSize(newSize, newSize)
-    }
-
-    window.addEventListener('resize', handleResize)
-
-    // Cleanup
     return () => {
-      window.removeEventListener('resize', handleResize)
-      cancelAnimationFrame(animationId)
-      renderer.dispose()
-      torusGeometry.dispose()
-      torusMaterial.dispose()
-      innerTorusGeometry.dispose()
-      innerTorusMaterial.dispose()
-      containerRef.current?.removeChild(renderer.domElement)
-    }
-  }, [isMobile, isTablet]) // Re-initialize when screen size changes
+      tl.kill();
+    };
+  }, []);
 
   return (
     <Box
       sx={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         display: 'flex',
-        flexDirection: 'column',
         alignItems: 'center',
-        gap: { xs: 1, sm: 1.5, md: 2 },
-        padding: { xs: 1, sm: 1.5, md: 2 },
-        width: '100%',
-        maxWidth: '100vw',
-        boxSizing: 'border-box',
-        backgroundColor: '#000000'
+        justifyContent: 'center',
+        background: 'rgba(0, 0, 0, 0.95)',
+        backdropFilter: 'blur(10px)',
+        zIndex: 9999
       }}
     >
-      <Box
-        ref={containerRef}
-        sx={{
-          position: 'relative',
-          width: { xs: '100px', sm: '120px', md: '150px' },
-          height: { xs: '100px', sm: '120px', md: '150px' },
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center'
-        }}
-      />
-      <Box
-        sx={{
-          width: getProgressBarWidth(),
-          position: 'relative',
-          mt: { xs: 0.5, sm: 1 },
-          maxWidth: '90vw'
-        }}
+      <svg
+        ref={cameraRef}
+        width="120"
+        height="120"
+        viewBox="0 0 120 120"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
       >
-        <LinearProgress
-          variant="determinate"
-          value={progress}
-          sx={{
-            height: { xs: 2, sm: 3, md: 4 },
-            borderRadius: 1,
-            backgroundColor: 'rgba(255, 255, 255, 0.1)',
-            '& .MuiLinearProgress-bar': {
-              borderRadius: 1,
-              background: 'linear-gradient(90deg, #4488ff, #00ff88)',
-              transition: 'transform 0.1s linear',
-            },
-          }}
+        {/* Camera body */}
+        <path
+          className="camera-body"
+          d="M30 40H90C95.5228 40 100 44.4772 100 50V80C100 85.5228 95.5228 90 90 90H30C24.4772 90 20 85.5228 20 80V50C20 44.4772 24.4772 40 30 40Z"
+          stroke="#82ca9d"
+          strokeWidth="3"
+          strokeLinecap="round"
         />
-        <Box
-          sx={{
-            position: 'absolute',
-            top: '100%',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            color: 'rgba(255, 255, 255, 0.7)',
-            fontSize: { xs: '8px', sm: '9px', md: '10px' },
-            mt: { xs: 0.25, sm: 0.5 }
-          }}
+        
+        {/* Camera lens */}
+        <circle
+          className="camera-lens"
+          cx="60"
+          cy="65"
+          r="15"
+          stroke="#82ca9d"
+          strokeWidth="3"
+          strokeDasharray="6 3"
+        />
+        
+        {/* Camera flash */}
+        <path
+          className="camera-flash"
+          d="M75 35L85 25M45 35L35 25"
+          stroke="#82ca9d"
+          strokeWidth="3"
+          strokeLinecap="round"
+        />
+        
+        {/* Loading text */}
+        <text
+          className="loading-text"
+          x="60"
+          y="110"
+          textAnchor="middle"
+          fill="#82ca9d"
+          fontSize="14"
+          fontFamily="Arial"
         >
-          {Math.round(progress)}%
-        </Box>
-      </Box>
+          Loading...
+        </text>
+      </svg>
     </Box>
-  )
-}
+  );
+};
 
-export default SpinnerLoader 
+export default SpinnerLoader; 

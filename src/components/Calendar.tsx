@@ -1,191 +1,175 @@
-import { Box } from '@mui/material'
-import { motion } from 'framer-motion'
+import { Box, Grid, Typography, Tooltip } from '@mui/material'
+import { CalendarProps } from '../types/dashboard'
 import { useState, useEffect } from 'react'
-import { ChevronLeft, ChevronRight } from '@mui/icons-material'
 
-const Calendar = () => {
-  const [currentDate, setCurrentDate] = useState(new Date())
-  const [selectedDate, setSelectedDate] = useState(new Date())
-
+const Calendar = ({ textColor }: CalendarProps) => {
+  const [currentDate] = useState(new Date())
+  const [events, setEvents] = useState<Record<string, { count: number; intensity: number }>>({})
+  
+  // Generate random events for demo
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentDate(new Date())
-    }, 1000)
+    const newEvents: Record<string, { count: number; intensity: number }> = {}
+    const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate()
+    
+    for (let i = 1; i <= daysInMonth; i++) {
+      if (Math.random() > 0.5) {
+        const count = Math.floor(Math.random() * 50) + 1
+        newEvents[i] = {
+          count,
+          intensity: count > 35 ? 1 : count > 20 ? 0.7 : 0.4
+        }
+      }
+    }
+    setEvents(newEvents)
+  }, [currentDate])
 
-    return () => clearInterval(timer)
-  }, [])
+  const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate()
+  const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay()
 
-  const changeDate = (days: number) => {
-    const newDate = new Date(selectedDate)
-    newDate.setDate(selectedDate.getDate() + days)
-    setSelectedDate(newDate)
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+
+  const getEventColor = (intensity: number) => {
+    return `rgba(130, 202, 157, ${intensity})`
   }
-
-  const resetToToday = () => {
-    setSelectedDate(new Date())
-  }
-
-  const formattedDate = selectedDate.toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  })
-
-  const formattedTime = currentDate.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
-
-  const isToday = selectedDate.toDateString() === new Date().toDateString()
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.6, ease: "easeOut" }}
-      style={{ height: '100%' }}
-    >
-      <Box sx={{ 
-        width: '100%',
-        height: '100%',
+    <Box sx={{ 
+      width: '100%', 
+      height: '100%',
+      color: textColor,
+      p: 2,
+      backgroundColor: 'rgba(0, 0, 0, 0.2)',
+      borderRadius: 2
+    }}>
+      <Box sx={{
         display: 'flex',
-        flexDirection: 'column',
         justifyContent: 'space-between',
         alignItems: 'center',
-        gap: 0.5,
-        position: 'relative'
+        mb: 3
       }}>
-        {/* Header as button */}
-        <motion.div
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          style={{
-            cursor: !isToday ? 'pointer' : 'default',
-            opacity: !isToday ? 1 : 0.7,
-            width: 'fit-content'
-          }}
-          onClick={() => !isToday && resetToToday()}
-        >
-          <Box sx={{ 
-            color: 'rgba(255, 255, 255, 0.7)',
-            fontSize: '0.9rem',
-            textAlign: 'center',
-            fontWeight: 500,
-            transition: 'color 0.3s ease',
-            '&:hover': {
-              color: !isToday ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.7)'
-            }
-          }}>
-            {!isToday ? 'Click to show current date' : 'Current Date'}
-          </Box>
-        </motion.div>
-
-        {/* Date navigation */}
-        <Box sx={{ 
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          width: '100%',
-          px: 1,
-        }}>
-          <motion.div
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <ChevronLeft 
-              sx={{ 
-                color: 'rgba(255, 255, 255, 0.7)',
-                cursor: 'pointer',
-                fontSize: '1.5rem',
-                '&:hover': {
-                  color: 'rgba(255, 255, 255, 0.9)'
-                }
-              }}
-              onClick={() => changeDate(-1)}
-            />
-          </motion.div>
-
-          <motion.div
-            key={formattedDate}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3 }}
-          >
-            <Box sx={{ 
-              fontSize: '1.2rem',
-              color: 'rgba(255, 255, 255, 0.9)',
-              fontWeight: 600,
-              textAlign: 'center',
-              lineHeight: 1.2,
-              letterSpacing: '0.5px',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              maxWidth: '80%',
-              mx: 'auto'
-            }}>
-              {formattedDate}
-            </Box>
-          </motion.div>
-
-          <motion.div
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <ChevronRight 
-              sx={{ 
-                color: 'rgba(255, 255, 255, 0.7)',
-                cursor: 'pointer',
-                fontSize: '1.5rem',
-                '&:hover': {
-                  color: 'rgba(255, 255, 255, 0.9)'
-                }
-              }}
-              onClick={() => changeDate(1)}
-            />
-          </motion.div>
-        </Box>
-
-        {/* Live Time display */}
-        <motion.div
-          animate={{ opacity: [0.7, 1, 0.7] }}
-          transition={{ 
-            duration: 2.5,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-        >
-          <Box sx={{ 
-            fontSize: '1.5rem',
-            color: 'rgba(255, 255, 255, 0.8)',
-            textAlign: 'center',
+        <Typography 
+          variant="h6" 
+          sx={{ 
             fontWeight: 600,
-            fontFamily: '"Roboto Mono", monospace',
-            letterSpacing: '2px',
-            background: 'linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.7) 100%)',
+            background: 'linear-gradient(45deg, #82ca9d, #4facfe)',
             WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            textShadow: '0 0 20px rgba(255,255,255,0.1)',
-            position: 'relative',
-            '&::after': {
-              content: '""',
-              position: 'absolute',
-              bottom: -4,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              width: '60%',
-              height: '2px',
-              background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
-            }
-          }}>
-            {formattedTime}
-          </Box>
-        </motion.div>
+            WebkitTextFillColor: 'transparent'
+          }}
+        >
+          {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
+        </Typography>
+        <Box sx={{
+          display: 'flex',
+          gap: 1,
+          alignItems: 'center'
+        }}>
+          <Box sx={{
+            width: 10,
+            height: 10,
+            borderRadius: '50%',
+            backgroundColor: getEventColor(0.4)
+          }} />
+          <Typography variant="caption">Low</Typography>
+          <Box sx={{
+            width: 10,
+            height: 10,
+            borderRadius: '50%',
+            backgroundColor: getEventColor(0.7)
+          }} />
+          <Typography variant="caption">Medium</Typography>
+          <Box sx={{
+            width: 10,
+            height: 10,
+            borderRadius: '50%',
+            backgroundColor: getEventColor(1)
+          }} />
+          <Typography variant="caption">High</Typography>
+        </Box>
       </Box>
-    </motion.div>
+      
+      <Grid container spacing={1}>
+        {days.map(day => (
+          <Grid item xs={12/7} key={day}>
+            <Typography 
+              align="center" 
+              sx={{ 
+                fontSize: '0.75rem',
+                color: 'rgba(255, 255, 255, 0.7)',
+                fontWeight: 500
+              }}
+            >
+              {day}
+            </Typography>
+          </Grid>
+        ))}
+        
+        {Array.from({ length: firstDayOfMonth }).map((_, index) => (
+          <Grid item xs={12/7} key={`empty-${index}`}>
+            <Box sx={{ aspectRatio: '1', opacity: 0 }} />
+          </Grid>
+        ))}
+        
+        {Array.from({ length: daysInMonth }).map((_, index) => {
+          const day = index + 1
+          const event = events[day]
+          
+          return (
+            <Grid item xs={12/7} key={index}>
+              <Tooltip 
+                title={event ? `${event.count} events` : 'No events'}
+                placement="top"
+              >
+                <Box sx={{ 
+                  aspectRatio: '1',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  position: 'relative',
+                  cursor: 'pointer',
+                  backgroundColor: event ? getEventColor(event.intensity) : 'transparent',
+                  transition: 'all 0.2s ease',
+                  '&:hover': {
+                    transform: 'scale(1.1)',
+                    zIndex: 1,
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
+                  },
+                  ...(currentDate.getDate() === day && {
+                    border: '2px solid #82ca9d',
+                    fontWeight: 'bold'
+                  })
+                }}>
+                  <Typography
+                    sx={{
+                      fontSize: '0.875rem',
+                      fontWeight: event ? 500 : 400,
+                      color: event ? (event.intensity > 0.7 ? '#000' : textColor) : textColor
+                    }}
+                  >
+                    {day}
+                  </Typography>
+                  {event && (
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        bottom: '2px',
+                        right: '2px',
+                        width: '4px',
+                        height: '4px',
+                        borderRadius: '50%',
+                        backgroundColor: event.intensity > 0.7 ? '#000' : '#82ca9d'
+                      }}
+                    />
+                  )}
+                </Box>
+              </Tooltip>
+            </Grid>
+          )
+        })}
+      </Grid>
+    </Box>
   )
 }
 
